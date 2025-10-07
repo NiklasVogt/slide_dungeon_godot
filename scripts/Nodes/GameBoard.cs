@@ -18,7 +18,6 @@ namespace Dungeon2048.Nodes
         private const float Padding = 12f;
         private float _reservedUiWidth = 360f;
 
-        // Persistente Registry für Entity-Knoten
         private readonly Dictionary<string, Node2D> _entityNodes = new();
 
         public override void _Ready()
@@ -110,8 +109,23 @@ namespace Dungeon2048.Nodes
             _gs.RegisterSwipe();
             if (UI is UI uiA) uiA.UpdateFromState(_gs);
 
-            await Movement.MoveEntitiesWithImmediateCollision(_gs, dir.X, dir.Y, ApplyState);
-            await ToSignal(GetTree().CreateTimer(0.3f), SceneTreeTimer.SignalName.Timeout);
+            // 1) Logik: bewegen + Kollision, Angriffe sammeln
+            var attackEvents = await Movement.MoveEntitiesWithImmediateCollision(_gs, dir.X, dir.Y, ApplyState);
+
+            // 2) Szene: erst Bewegungen animieren
+            AnimateEntities();
+            // Kurzer Wait, damit die Gleitanimation sichtbar starten kann
+            await ToSignal(GetTree().CreateTimer(0.12f), SceneTreeTimer.SignalName.Timeout);
+
+            // 3) Jetzt Angriffs-Stoß-Animationen abspielen (sequenziell)
+            foreach (var ev in attackEvents)
+            {
+                AttackFx(ev.Attacker, ev.Target, ev.Dir);
+                await ToSignal(GetTree().CreateTimer(0.12f), SceneTreeTimer.SignalName.Timeout);
+            }
+
+            // 4) Danach spawnen und final syncen
+            await ToSignal(GetTree().CreateTimer(0.18f), SceneTreeTimer.SignalName.Timeout);
             _gs.SpawnEnemies();
 
             SyncScene();
@@ -148,7 +162,6 @@ namespace Dungeon2048.Nodes
             QueueRedraw();
         }
 
-        // Smooth slide helper mit längenabhängiger Dauer
         private void SlideNodeTo(Node2D node, Vector2 target)
         {
             var dist = (node.Position - target).Length();
@@ -211,76 +224,6 @@ namespace Dungeon2048.Nodes
             }
         }
 
-        // Spell per UI-Button auslösen
-public void CastSpellFromUI(int index)
-{
-    if (_animating) return;
-    if (index < 0 || index >= _gs.Player.Spells.Count) return;
-
-    var s = _gs.Player.Spells[index];
-
-    switch (s)
-    {
-        case FreezeSpell:
-            _gs.EnemiesFrozen = true;
-            _gs.Player.UseSpell(index);
-            break;
-        case TeleportSpell:
-            var p = _gs.RandomFreeCell(ignorePlayer: true);
-            _gs.Player.X = p.X; _gs.Player.Y = p.Y;
-            _gs.Player.UseSpell(index);
-            break;
-        case LightningSpell:
-        {
-            // Jeden Kill zählen
-            var killed = new System.Collections.Generic.List<Enemy>();
-            foreach (var e in _gs.Enemies.ToArray())
-                if (e.Type == EnemyType.Goblin)
-                    killed.Add(e);
-            foreach (var e in killed)
-            {
-                _gs.RegisterPlayerKill(e);
-                _gs.Enemies.Remove(e);
-            }
-            GD.Print($"⚡ {killed.Count} Goblins vernichtet");
-            _gs.Player.UseSpell(index);
-            break;
-        }
-        case FireballSpell:
-        {
-            int dmg = 8 + (int)(_gs.Player.Level / 2.0);
-            int px = _gs.Player.X; int py = _gs.Player.Y;
-            var toKill = new System.Collections.Generic.List<Enemy>();
-            foreach (var e in _gs.Enemies)
-            {
-                if (e.X == px || e.Y == py)
-                {
-                    e.Hp -= dmg;
-                    if (e.Hp <= 0) toKill.Add(e);
-                }
-            }
-            foreach (var ek in toKill)
-            {
-                _gs.RegisterPlayerKill(ek);
-                _gs.Enemies.Remove(ek);
-                _gs.Player.GainExperience(ek.XpReward);
-                if (ek.IsBoss) GD.Print("Boss getötet!");
-            }
-            _gs.Player.UseSpell(index);
-            break;
-        }
-        case HealSpell:
-            _gs.Player.UseSpell(index);
-            break;
-        default:
-            _gs.Player.UseSpell(index);
-            break;
-    }
-
-    _gs.SpawnEnemies();
-    SyncScene();
-}
-
         private void AnimateEntities()
         {
             // Spieler
@@ -335,7 +278,6 @@ public void CastSpellFromUI(int index)
                 UpdateEntityNodeVisuals(name, 1);
             }
 
-            // Nicht mehr vorhandene entsorgen
             PruneMissingNodes();
         }
 
@@ -359,5 +301,95 @@ public void CastSpellFromUI(int index)
 
         private Vector2 MapToLocal(Vector2I gridPos)
             => new Vector2(Padding + gridPos.X * _tileSize, Padding + gridPos.Y * _tileSize);
+
+        private void AttackFx(string attackerName, string targetName, Vector2I dir)
+        {
+            if (!_entityNodes.TryGetValue(attackerName, out var attackerNode))
+                return;
+
+            var origin = attackerNode.Position;
+            var nudge = new Vector2(dir.X, dir.Y) * (_tileSize * 0.25f);
+
+            var tw = CreateTween();
+            tw.SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
+            tw.TweenProperty(attackerNode, "position", origin + nudge, 0.06);
+            tw.TweenProperty(attackerNode, "position", origin, 0.08).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.In);
+
+            if (_entityNodes.TryGetValue(targetName, out var targetNode))
+            {
+                var hit = CreateTween();
+                hit.TweenProperty(targetNode, "scale", new Vector2(1.06f, 1.06f), 0.05);
+                hit.TweenProperty(targetNode, "scale", new Vector2(1f, 1f), 0.08);
+            }
+        }
+
+        // Für UI-Spell-Buttons
+        public void CastSpellFromUI(int index)
+        {
+            if (_animating) return;
+            if (index < 0 || index >= _gs.Player.Spells.Count) return;
+
+            var s = _gs.Player.Spells[index];
+
+            switch (s)
+            {
+                case FreezeSpell:
+                    _gs.EnemiesFrozen = true;
+                    _gs.Player.UseSpell(index);
+                    break;
+                case TeleportSpell:
+                    var p = _gs.RandomFreeCell(ignorePlayer: true);
+                    _gs.Player.X = p.X; _gs.Player.Y = p.Y;
+                    _gs.Player.UseSpell(index);
+                    break;
+                case LightningSpell:
+                {
+                    var killed = new System.Collections.Generic.List<Enemy>();
+                    foreach (var e in _gs.Enemies.ToArray())
+                        if (e.Type == EnemyType.Goblin)
+                            killed.Add(e);
+                    foreach (var e in killed)
+                    {
+                        _gs.RegisterPlayerKill(e);
+                        _gs.Enemies.Remove(e);
+                    }
+                    GD.Print($"⚡ {killed.Count} Goblins vernichtet");
+                    _gs.Player.UseSpell(index);
+                    break;
+                }
+                case FireballSpell:
+                {
+                    int dmg = 8 + (int)(_gs.Player.Level / 2.0);
+                    int px = _gs.Player.X; int py = _gs.Player.Y;
+                    var toKill = new System.Collections.Generic.List<Enemy>();
+                    foreach (var e in _gs.Enemies)
+                    {
+                        if (e.X == px || e.Y == py)
+                        {
+                            e.Hp -= dmg;
+                            if (e.Hp <= 0) toKill.Add(e);
+                        }
+                    }
+                    foreach (var ek in toKill)
+                    {
+                        _gs.RegisterPlayerKill(ek);
+                        _gs.Enemies.Remove(ek);
+                        _gs.Player.GainExperience(ek.XpReward);
+                        if (ek.IsBoss) GD.Print("Boss getötet!");
+                    }
+                    _gs.Player.UseSpell(index);
+                    break;
+                }
+                case HealSpell:
+                    _gs.Player.UseSpell(index);
+                    break;
+                default:
+                    _gs.Player.UseSpell(index);
+                    break;
+            }
+
+            _gs.SpawnEnemies();
+            SyncScene();
+        }
     }
 }

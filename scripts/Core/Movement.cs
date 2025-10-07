@@ -8,6 +8,14 @@ namespace Dungeon2048.Core
 {
     public static class Movement
     {
+        public struct AttackEvent
+        {
+            public string Attacker;
+            public string Target;
+            public Vector2I Dir;
+            public AttackEvent(string a, string t, Vector2I d){ Attacker=a; Target=t; Dir=d; }
+        }
+
         private static int SpellIndexAt(List<SpellDrop> drops, int x, int y)
             => drops.FindIndex(d => d.X == x && d.Y == y);
 
@@ -26,7 +34,6 @@ namespace Dungeon2048.Core
                 if (door != null && door.IsActive && door.X == nx && door.Y == ny) break;
                 if (stones.Any(s => s.X == nx && s.Y == ny)) break;
 
-                // Spieler darf aufs Spell-Feld, hält dort an
                 if (HasSpellAt(spellDrops, nx, ny))
                 {
                     if (entity is Player) { x = nx; y = ny; }
@@ -53,11 +60,11 @@ namespace Dungeon2048.Core
         }
 
         private static void ResolveImmediateCollisionAfterMove(
-            GameState gs, EntityBase moved, int dx, int dy, Action<Action> setState, HashSet<string> occupied)
+            GameState gs, EntityBase moved, int dx, int dy, Action<Action> setState, HashSet<string> occupied,
+            List<AttackEvent> events)
         {
             if (moved is Player)
             {
-                // Spell auf aktuellem Feld direkt einsammeln
                 int hereSpellIdx = SpellIndexAt(gs.SpellDrops, moved.X, moved.Y);
                 if (hereSpellIdx != -1)
                 {
@@ -110,6 +117,8 @@ namespace Dungeon2048.Core
                 if (eidx != -1)
                 {
                     var target = gs.Enemies[eidx];
+                    events.Add(new AttackEvent("Player", $"Enemy_{target.Id}", new Vector2I(dx, dy)));
+
                     target.Hp -= moved.Atk;
                     if (target.Hp <= 0)
                     {
@@ -139,6 +148,8 @@ namespace Dungeon2048.Core
 
                 if (gs.Player.X == tx && gs.Player.Y == ty)
                 {
+                    events.Add(new AttackEvent($"Enemy_{enemy.Id}", "Player", new Vector2I(dx, dy)));
+
                     gs.Player.Hp -= enemy.Atk;
                     setState(() => { });
                     return;
@@ -181,9 +192,11 @@ namespace Dungeon2048.Core
             }
         }
 
-        public static async Task MoveEntitiesWithImmediateCollision(
+        public static async Task<List<AttackEvent>> MoveEntitiesWithImmediateCollision(
             GameState gs, int dx, int dy, Action<Action> setState)
         {
+            var events = new List<AttackEvent>();
+
             var entitiesToMove = gs.EnemiesFrozen
                 ? new List<EntityBase> { gs.Player }
                 : new List<EntityBase> { gs.Player }.Concat(gs.Enemies.Cast<EntityBase>()).ToList();
@@ -204,7 +217,7 @@ namespace Dungeon2048.Core
                 occupied.Add($"{entity.X},{entity.Y}");
                 setState(() => { });
 
-                ResolveImmediateCollisionAfterMove(gs, entity, dx, dy, setState, occupied);
+                ResolveImmediateCollisionAfterMove(gs, entity, dx, dy, setState, occupied, events);
                 await Task.Delay(150);
             }
 
@@ -213,6 +226,8 @@ namespace Dungeon2048.Core
                 gs.EnemiesFrozen = false;
                 GD.Print("Freeze Ende: Gegner bewegen sich wieder.");
             }
+
+            return events;
         }
     }
 }

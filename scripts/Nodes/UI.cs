@@ -122,13 +122,9 @@ namespace Dungeon2048.Nodes
             };
             b.Pressed += () =>
             {
-                if (_board != null)
-                {
-                    // Optionaler Fallback: Suche den GameBoard-Node global, falls _board null
-                    if (_board == null)
-                        _board = GetTree().Root.GetNodeOrNull<GameBoard>("Main/GameBoard");
-                    _board?.CastSpellFromUI(index);
-                }
+                if (_board == null)
+                    _board = GetTree().Root.GetNodeOrNull<GameBoard>("Main/GameBoard");
+                _board?.CastSpellFromUI(index);
             };
             return b;
         }
