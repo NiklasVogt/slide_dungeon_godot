@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Godot;
 using Dungeon2048.Core;
@@ -13,13 +14,12 @@ namespace Dungeon2048.Nodes
         private GameState _gs;
         private bool _animating = false;
 
-        // Dynamische Kachelgröße (aus Viewport berechnet)
         private float _tileSize = 96f;
-
-        // Außenabstand
         private const float Padding = 12f;
-        // Reservierte Breite für das UI (wird dynamisch gerechnet)
         private float _reservedUiWidth = 360f;
+
+        // Persistente Registry für Entity-Knoten
+        private readonly Dictionary<string, Node2D> _entityNodes = new();
 
         public override void _Ready()
         {
@@ -30,7 +30,6 @@ namespace Dungeon2048.Nodes
             EntitiesNode ??= GetNode<Node2D>("Entities");
             UI ??= GetNode<Control>("CanvasLayer/UI");
 
-            // Viewport-Resize beobachten
             GetViewport().SizeChanged += OnViewportSizeChanged;
 
             RecomputeTileSize();
@@ -62,15 +61,11 @@ namespace Dungeon2048.Nodes
             float cellW = usableW / GameState.GridSize;
             float cellH = usableH / GameState.GridSize;
 
-            // Dreiwerte-Min korrekt verschachtelt
             _tileSize = Mathf.Floor(Mathf.Min(Mathf.Min(cellW, cellH), 200f));
         }
 
         private float ComputeReservedUiWidth(float viewportWidth)
-        {
-            // 28% der Breite, min 320, max 520
-            return Mathf.Clamp(viewportWidth * 0.28f, 320f, 520f);
-        }
+            => Mathf.Clamp(viewportWidth * 0.28f, 320f, 520f);
 
         public override void _Draw()
         {
@@ -131,10 +126,9 @@ namespace Dungeon2048.Nodes
 
         private void SyncScene()
         {
-            EnsureNodes();
+            AnimateEntities();
             if (UI is UI ui) ui.UpdateFromState(_gs);
 
-            // UI rechts andocken und Breite setzen
             float uiWidth = _reservedUiWidth;
             if (UI != null)
             {
@@ -154,59 +148,35 @@ namespace Dungeon2048.Nodes
             QueueRedraw();
         }
 
-        private void EnsureNodes()
+        // Smooth slide helper mit längenabhängiger Dauer
+        private void SlideNodeTo(Node2D node, Vector2 target)
         {
-            // Z-Order: erst Spells/Steine/Tür/Gegner, Spieler zuletzt oder mit höherem ZIndex
-            // Vorher vorhandene dynamische Kinder entfernen
-            for (int i = EntitiesNode.GetChildCount() - 1; i >= 0; i--)
-            {
-                var n = EntitiesNode.GetChild(i);
-                var nm = n.Name.ToString();
-                if (nm.StartsWith("Enemy_") || nm.StartsWith("Stone_") || nm.StartsWith("Spell_") || nm == "Door" || nm == "Player")
-                {
-                    EntitiesNode.RemoveChild(n);
-                    n.QueueFree();
-                }
-            }
+            var dist = (node.Position - target).Length();
+            double duration = Mathf.Clamp(dist / Mathf.Max(1f, _tileSize) * 0.07, 0.08, 0.25);
+            if (dist < 0.01f) return;
 
-            foreach (var s in _gs.Stones)
-                EnsureEntityNode($"Stone_{s.Id}", new ProxyEntity(s.X, s.Y, s.HitCount + 1, 0), Colors.Gray, z: 3);
-
-            foreach (var d in _gs.SpellDrops)
-                EnsureEntityNode($"Spell_{d.Id}", new ProxyEntity(d.X, d.Y, 1, 0), Colors.Gold, z: 4);
-
-            if (_gs.Door != null && _gs.Door.IsActive)
-                EnsureEntityNode("Door", new ProxyEntity(_gs.Door.X, _gs.Door.Y, 1, 0), Colors.LightGreen, z: 2);
-
-            foreach (var e in _gs.Enemies)
-                EnsureEntityNode($"Enemy_{e.Id}", e, e.Type switch
-                {
-                    EnemyType.Goblin => new Color("3cb44b"),
-                    EnemyType.Orc => new Color("f58231"),
-                    EnemyType.Dragon => new Color("911eb4"),
-                    EnemyType.Boss => new Color("111111"),
-                    _ => new Color("ff5f5f")
-                }, showBadge: true, badgeText: e.IsBoss ? "👑" : e.EnemyLevel.ToString(), z: 6);
-
-            // Spieler zuletzt hinzufügen, damit er über Spells gezeichnet wird
-            EnsureEntityNode("Player", _gs.Player, Colors.SkyBlue, showBadge: false, z: 8);
+            var tw = CreateTween();
+            tw.SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.Out);
+            tw.TweenProperty(node, "position", target, duration);
         }
 
-        private void EnsureEntityNode(string name, EntityBase ent, Color color, bool showBadge = false, string badgeText = "", int z = 0)
+        private Node2D GetOrCreateEntityNode(string name, int z, Color color, int hp, bool showBadge = false, string badgeText = "")
         {
-            var node = new Node2D { Name = name, Position = MapToLocal(new Vector2I(ent.X, ent.Y)), ZIndex = z };
+            if (_entityNodes.TryGetValue(name, out var node))
+                return node;
+
+            node = new Node2D { Name = name, ZIndex = z };
 
             var wrap = new Control { Name = "Wrap", CustomMinimumSize = new Vector2(_tileSize, _tileSize) };
-
             var box = new ColorRect { Name = "Box", Color = color, Size = new Vector2(_tileSize, _tileSize) };
             wrap.AddChild(box);
 
-            var hp = new Label { Name = "HP", Text = ent.Hp.ToString() };
-            hp.HorizontalAlignment = HorizontalAlignment.Center;
-            hp.VerticalAlignment = VerticalAlignment.Center;
-            hp.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-            hp.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
-            wrap.AddChild(hp);
+            var hpLbl = new Label { Name = "HP", Text = hp.ToString() };
+            hpLbl.HorizontalAlignment = HorizontalAlignment.Center;
+            hpLbl.VerticalAlignment = VerticalAlignment.Center;
+            hpLbl.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+            hpLbl.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+            wrap.AddChild(hpLbl);
 
             if (showBadge)
             {
@@ -217,74 +187,177 @@ namespace Dungeon2048.Nodes
 
             node.AddChild(wrap);
             EntitiesNode.AddChild(node);
+            _entityNodes[name] = node;
+            return node;
+        }
+
+        private void UpdateEntityNodeVisuals(string name, int hp, string? badgeText = null)
+        {
+            if (!_entityNodes.TryGetValue(name, out var node)) return;
+            var wrap = node.GetNodeOrNull<Control>("Wrap");
+            if (wrap == null) return;
+
+            wrap.CustomMinimumSize = new Vector2(_tileSize, _tileSize);
+            var box = wrap.GetNodeOrNull<ColorRect>("Box");
+            if (box != null) box.Size = new Vector2(_tileSize, _tileSize);
+
+            var hpLbl = wrap.GetNodeOrNull<Label>("HP");
+            if (hpLbl != null) hpLbl.Text = hp.ToString();
+
+            if (badgeText != null)
+            {
+                var badge = wrap.GetNodeOrNull<Label>("Badge");
+                if (badge != null) badge.Text = badgeText;
+            }
+        }
+
+        // Spell per UI-Button auslösen
+public void CastSpellFromUI(int index)
+{
+    if (_animating) return;
+    if (index < 0 || index >= _gs.Player.Spells.Count) return;
+
+    var s = _gs.Player.Spells[index];
+
+    switch (s)
+    {
+        case FreezeSpell:
+            _gs.EnemiesFrozen = true;
+            _gs.Player.UseSpell(index);
+            break;
+        case TeleportSpell:
+            var p = _gs.RandomFreeCell(ignorePlayer: true);
+            _gs.Player.X = p.X; _gs.Player.Y = p.Y;
+            _gs.Player.UseSpell(index);
+            break;
+        case LightningSpell:
+        {
+            // Jeden Kill zählen
+            var killed = new System.Collections.Generic.List<Enemy>();
+            foreach (var e in _gs.Enemies.ToArray())
+                if (e.Type == EnemyType.Goblin)
+                    killed.Add(e);
+            foreach (var e in killed)
+            {
+                _gs.RegisterPlayerKill(e);
+                _gs.Enemies.Remove(e);
+            }
+            GD.Print($"⚡ {killed.Count} Goblins vernichtet");
+            _gs.Player.UseSpell(index);
+            break;
+        }
+        case FireballSpell:
+        {
+            int dmg = 8 + (int)(_gs.Player.Level / 2.0);
+            int px = _gs.Player.X; int py = _gs.Player.Y;
+            var toKill = new System.Collections.Generic.List<Enemy>();
+            foreach (var e in _gs.Enemies)
+            {
+                if (e.X == px || e.Y == py)
+                {
+                    e.Hp -= dmg;
+                    if (e.Hp <= 0) toKill.Add(e);
+                }
+            }
+            foreach (var ek in toKill)
+            {
+                _gs.RegisterPlayerKill(ek);
+                _gs.Enemies.Remove(ek);
+                _gs.Player.GainExperience(ek.XpReward);
+                if (ek.IsBoss) GD.Print("Boss getötet!");
+            }
+            _gs.Player.UseSpell(index);
+            break;
+        }
+        case HealSpell:
+            _gs.Player.UseSpell(index);
+            break;
+        default:
+            _gs.Player.UseSpell(index);
+            break;
+    }
+
+    _gs.SpawnEnemies();
+    SyncScene();
+}
+
+        private void AnimateEntities()
+        {
+            // Spieler
+            {
+                var name = "Player";
+                var node = GetOrCreateEntityNode(name, 8, Colors.SkyBlue, _gs.Player.Hp);
+                SlideNodeTo(node, MapToLocal(new Vector2I(_gs.Player.X, _gs.Player.Y)));
+                UpdateEntityNodeVisuals(name, _gs.Player.Hp);
+            }
+
+            // Gegner
+            foreach (var e in _gs.Enemies)
+            {
+                var name = $"Enemy_{e.Id}";
+                var color = e.Type switch
+                {
+                    EnemyType.Goblin => new Color("3cb44b"),
+                    EnemyType.Orc => new Color("f58231"),
+                    EnemyType.Dragon => new Color("911eb4"),
+                    EnemyType.Boss => new Color("111111"),
+                    _ => new Color("ff5f5f")
+                };
+                var node = GetOrCreateEntityNode(name, 6, color, e.Hp, showBadge: true, badgeText: e.IsBoss ? "👑" : e.EnemyLevel.ToString());
+                SlideNodeTo(node, MapToLocal(new Vector2I(e.X, e.Y)));
+                UpdateEntityNodeVisuals(name, e.Hp, e.IsBoss ? "👑" : e.EnemyLevel.ToString());
+            }
+
+            // Steine
+            foreach (var s in _gs.Stones)
+            {
+                var name = $"Stone_{s.Id}";
+                var node = GetOrCreateEntityNode(name, 3, Colors.Gray, s.HitCount + 1);
+                SlideNodeTo(node, MapToLocal(new Vector2I(s.X, s.Y)));
+                UpdateEntityNodeVisuals(name, s.HitCount + 1);
+            }
+
+            // Spells
+            foreach (var d in _gs.SpellDrops)
+            {
+                var name = $"Spell_{d.Id}";
+                var node = GetOrCreateEntityNode(name, 4, Colors.Gold, 1);
+                SlideNodeTo(node, MapToLocal(new Vector2I(d.X, d.Y)));
+                UpdateEntityNodeVisuals(name, 1);
+            }
+
+            // Tür
+            if (_gs.Door != null && _gs.Door.IsActive)
+            {
+                var name = "Door";
+                var node = GetOrCreateEntityNode(name, 2, Colors.LightGreen, 1);
+                SlideNodeTo(node, MapToLocal(new Vector2I(_gs.Door.X, _gs.Door.Y)));
+                UpdateEntityNodeVisuals(name, 1);
+            }
+
+            // Nicht mehr vorhandene entsorgen
+            PruneMissingNodes();
+        }
+
+        private void PruneMissingNodes()
+        {
+            var alive = new HashSet<string> { "Player" };
+            foreach (var e in _gs.Enemies) alive.Add($"Enemy_{e.Id}");
+            foreach (var s in _gs.Stones) alive.Add($"Stone_{s.Id}");
+            foreach (var d in _gs.SpellDrops) alive.Add($"Spell_{d.Id}");
+            if (_gs.Door != null && _gs.Door.IsActive) alive.Add("Door");
+
+            foreach (var kv in _entityNodes.ToArray())
+            {
+                if (!alive.Contains(kv.Key))
+                {
+                    kv.Value.QueueFree();
+                    _entityNodes.Remove(kv.Key);
+                }
+            }
         }
 
         private Vector2 MapToLocal(Vector2I gridPos)
-        {
-            return new Vector2(Padding + gridPos.X * _tileSize, Padding + gridPos.Y * _tileSize);
-        }
-
-        public void CastSpellFromUI(int index)
-        {
-            if (_animating) return;
-            if (index < 0 || index >= _gs.Player.Spells.Count) return;
-
-            var s = _gs.Player.Spells[index];
-
-            switch (s)
-            {
-                case FreezeSpell:
-                    _gs.EnemiesFrozen = true;
-                    _gs.Player.UseSpell(index);
-                    break;
-                case TeleportSpell:
-                    var p = _gs.RandomFreeCell(ignorePlayer: true);
-                    _gs.Player.X = p.X; _gs.Player.Y = p.Y;
-                    _gs.Player.UseSpell(index);
-                    break;
-                case LightningSpell:
-                    int removed = _gs.Enemies.RemoveAll(e => e.Type == EnemyType.Goblin);
-                    if (removed > 0) GD.Print($"⚡ {removed} Goblins vernichtet");
-                    _gs.Player.UseSpell(index);
-                    break;
-                case FireballSpell:
-                {
-                    int dmg = 8 + (int)(_gs.Player.Level / 2.0);
-                    int px = _gs.Player.X; int py = _gs.Player.Y;
-                    var toKill = new System.Collections.Generic.List<Enemy>();
-                    foreach (var e in _gs.Enemies)
-                    {
-                        if (e.X == px || e.Y == py)
-                        {
-                            e.Hp -= dmg;
-                            if (e.Hp <= 0) toKill.Add(e);
-                        }
-                    }
-                    foreach (var ek in toKill)
-                    {
-                        _gs.RegisterPlayerKill(ek);  // Fortschritt + Kills hochzählen
-                        _gs.Enemies.Remove(ek);
-                        _gs.Player.GainExperience(ek.XpReward);
-                        if (ek.IsBoss) GD.Print("Boss getötet!");
-                    }
-                    _gs.Player.UseSpell(index);
-                    break;
-                }
-                case HealSpell:
-                    _gs.Player.UseSpell(index);
-                    break;
-                default:
-                    _gs.Player.UseSpell(index);
-                    break;
-            }
-
-            _gs.SpawnEnemies();
-            SyncScene();
-        }
-
-        private sealed class ProxyEntity : EntityBase
-        {
-            public ProxyEntity(int x, int y, int hp, int atk) : base(x, y, hp, atk) { }
-        }
+            => new Vector2(Padding + gridPos.X * _tileSize, Padding + gridPos.Y * _tileSize);
     }
 }

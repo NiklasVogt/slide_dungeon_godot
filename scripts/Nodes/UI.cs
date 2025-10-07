@@ -3,7 +3,6 @@ using Dungeon2048.Core;
 
 namespace Dungeon2048.Nodes
 {
-    // Klassenname = Dateiname (UI.cs) für Godot-Bindung
     public partial class UI : Control
     {
         private Label _title;
@@ -22,7 +21,6 @@ namespace Dungeon2048.Nodes
         {
             _board = GetParent()?.GetParent() as GameBoard;
 
-            // Rechts andocken
             AnchorLeft = 1f;
             AnchorRight = 1f;
             AnchorTop = 0f;
@@ -33,7 +31,6 @@ namespace Dungeon2048.Nodes
             OffsetBottom = 0f;
             OffsetLeft = -_desiredWidth - 12f;
 
-            // Viewport-Resize
             GetViewport().SizeChanged += OnViewportSizeChanged;
 
             var panel = new Panel
@@ -100,7 +97,6 @@ namespace Dungeon2048.Nodes
         public void SetDesiredWidth(float width)
         {
             _desiredWidth = width;
-
             OffsetLeft = -_desiredWidth - 12f;
 
             var panel = GetNodeOrNull<Panel>("Panel");
@@ -127,7 +123,12 @@ namespace Dungeon2048.Nodes
             b.Pressed += () =>
             {
                 if (_board != null)
-                    _board.CastSpellFromUI(index);
+                {
+                    // Optionaler Fallback: Suche den GameBoard-Node global, falls _board null
+                    if (_board == null)
+                        _board = GetTree().Root.GetNodeOrNull<GameBoard>("Main/GameBoard");
+                    _board?.CastSpellFromUI(index);
+                }
             };
             return b;
         }

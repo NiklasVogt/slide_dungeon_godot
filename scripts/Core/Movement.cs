@@ -26,7 +26,7 @@ namespace Dungeon2048.Core
                 if (door != null && door.IsActive && door.X == nx && door.Y == ny) break;
                 if (stones.Any(s => s.X == nx && s.Y == ny)) break;
 
-                // Spell blockiert wie eine „weiche“ Kachel: Spieler darf auf die Spell-Zelle, dann stoppt er dort
+                // Spieler darf aufs Spell-Feld, hält dort an
                 if (HasSpellAt(spellDrops, nx, ny))
                 {
                     if (entity is Player) { x = nx; y = ny; }
@@ -55,22 +55,20 @@ namespace Dungeon2048.Core
         private static void ResolveImmediateCollisionAfterMove(
             GameState gs, EntityBase moved, int dx, int dy, Action<Action> setState, HashSet<string> occupied)
         {
-            // Wichtig: erst Pickup auf aktuellem Feld, dann andere Kollisionen prüfen
             if (moved is Player)
             {
-                // 1) Spell auf dem aktuellen Feld sofort einsammeln
+                // Spell auf aktuellem Feld direkt einsammeln
                 int hereSpellIdx = SpellIndexAt(gs.SpellDrops, moved.X, moved.Y);
                 if (hereSpellIdx != -1)
                 {
                     var drop = gs.SpellDrops[hereSpellIdx];
                     setState(() =>
                     {
-                        gs.RegisterSpellPickup(drop); // entfernt Drop, fügt Spell ins Inventar
+                        gs.RegisterSpellPickup(drop);
                     });
                     return;
                 }
 
-                // 2) Kollisionen vor dem Spieler prüfen
                 int tx = moved.X + dx, ty = moved.Y + dy;
                 if (tx < 0 || tx >= GameState.GridSize || ty < 0 || ty >= GameState.GridSize) return;
 
@@ -134,7 +132,6 @@ namespace Dungeon2048.Core
                 }
             }
 
-            // Gegner-Kollisionen unverändert
             if (moved is Enemy enemy && !gs.EnemiesFrozen)
             {
                 int tx = moved.X + dx, ty = moved.Y + dy;
@@ -207,7 +204,6 @@ namespace Dungeon2048.Core
                 occupied.Add($"{entity.X},{entity.Y}");
                 setState(() => { });
 
-                // Wichtig: Kollisionen sofort lösen (Pickup zuerst)
                 ResolveImmediateCollisionAfterMove(gs, entity, dx, dy, setState, occupied);
                 await Task.Delay(150);
             }
