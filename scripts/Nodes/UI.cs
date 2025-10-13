@@ -1,5 +1,6 @@
 using Godot;
-using Dungeon2048.Core;
+using Dungeon2048.Core.Services;
+using Dungeon2048.Core.Spells;
 
 namespace Dungeon2048.Nodes
 {
@@ -9,28 +10,23 @@ namespace Dungeon2048.Nodes
         private ProgressBar _objBar;
         private Label _objText;
         private Label _stats;
-
         private Button _spell0;
         private Button _spell1;
         private Button _spell2;
-
         private GameBoard _board;
         private float _desiredWidth = 360f;
 
         public override void _Ready()
         {
             _board = GetParent()?.GetParent() as GameBoard;
-
             AnchorLeft = 1f;
             AnchorRight = 1f;
             AnchorTop = 0f;
             AnchorBottom = 0f;
-
             OffsetRight = -12f;
             OffsetTop = 12f;
             OffsetBottom = 0f;
             OffsetLeft = -_desiredWidth - 12f;
-
             GetViewport().SizeChanged += OnViewportSizeChanged;
 
             var panel = new Panel
@@ -51,10 +47,8 @@ namespace Dungeon2048.Nodes
 
             _title = new Label { Text = "Dungeon 2048" };
             _title.AddThemeFontSizeOverride("font_size", 18);
-
             _objBar = new ProgressBar { MinValue = 0, MaxValue = 1, Value = 0, SizeFlagsHorizontal = SizeFlags.ExpandFill };
             _objText = new Label { Text = "…" };
-
             _stats = new Label { Text = "HP/ATK/Swipes/Kills" };
 
             var spellsLabel = new Label { Text = "Zauber" };
@@ -68,7 +62,6 @@ namespace Dungeon2048.Nodes
             _spell0 = MakeSpellButton(0);
             _spell1 = MakeSpellButton(1);
             _spell2 = MakeSpellButton(2);
-
             spells.AddChild(_spell0);
             spells.AddChild(_spell1);
             spells.AddChild(_spell2);
@@ -129,27 +122,29 @@ namespace Dungeon2048.Nodes
             return b;
         }
 
-        public void UpdateFromState(GameState gs)
+        // Neue Signatur: GameContext statt GameState
+        public void UpdateFromState(GameContext gs)
         {
             if (gs == null) return;
 
-            _title.Text = $"Level {gs.CurrentLevel}  {gs.CurrentObjective.Icon}  {gs.CurrentObjective.Description}";
-            _objBar.Value = gs.ObjectiveProgress();
-            _objText.Text = gs.CurrentObjective.ProgressText;
-            _stats.Text = $"HP {gs.Player.Hp}/{gs.Player.MaxHp}  ATK {gs.Player.Atk}  Swipes {gs.TotalSwipes}  Kills {gs.TotalEnemiesKilled}";
+            _title.Text = $"Level {gs.CurrentLevel} {gs.Objective.Icon} {gs.Objective.Description}";
+            _objBar.Value = gs.Objective.Progress;
+            _objText.Text = gs.Objective.ProgressText;
+            _stats.Text = $"HP {gs.Player.Hp}/{gs.Player.MaxHp} ATK {gs.Player.Atk} Swipes {gs.TotalSwipes} Kills {gs.TotalEnemiesKilled}";
 
             SetSpellSlot(_spell0, gs, 0);
             SetSpellSlot(_spell1, gs, 1);
             SetSpellSlot(_spell2, gs, 2);
         }
 
-        private void SetSpellSlot(Button btn, GameState gs, int idx)
+        private void SetSpellSlot(Button btn, GameContext gs, int idx)
         {
             if (gs.Player.Spells.Count > idx)
             {
                 var sp = gs.Player.Spells[idx];
                 btn.Text = sp.Name;
                 btn.Disabled = false;
+
                 switch (sp.Type)
                 {
                     case SpellType.Fireball: btn.Modulate = new Color("ff5722"); break;
@@ -167,5 +162,8 @@ namespace Dungeon2048.Nodes
                 btn.Modulate = Colors.White;
             }
         }
+
+        // Optional: kompatibler Shim, falls Board noch OldShim aufruft
+        public void UpdateFromStateOldShim(GameContext gs) => UpdateFromState(gs);
     }
 }
