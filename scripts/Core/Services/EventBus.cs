@@ -1,6 +1,5 @@
-using System;
 using System.Collections.Generic;
-using System.Numerics;
+using Godot;
 
 namespace Dungeon2048.Core.Services
 {
@@ -8,14 +7,29 @@ namespace Dungeon2048.Core.Services
     {
         public string Attacker;
         public string Target;
-        public Godot.Vector2I Dir;
-        public AttackEvent(string a, string t, Godot.Vector2I d){ Attacker=a; Target=t; Dir=d; }
+        public Vector2I Dir;
+
+        public AttackEvent(string a, string t, Vector2I d)
+        {
+            Attacker = a;
+            Target = t;
+            Dir = d;
+        }
     }
 
     public sealed class EventBus
     {
         public readonly List<AttackEvent> Attacks = new();
-        public void Add(AttackEvent e) => Attacks.Add(e);
-        public void Clear() => Attacks.Clear();
+
+        // Öffentliche, klar benannte API (so wie in MovementPipeline genutzt)
+        public void AddAttackEvent(AttackEvent e)
+        {
+            Attacks.Add(e);
+        }
+
+        public void Clear()
+        {
+            Attacks.Clear();
+        }
     }
 }

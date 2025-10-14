@@ -3,12 +3,25 @@ using System.Linq;
 using System.Threading.Tasks;
 using Dungeon2048.Core.Entities;
 using Dungeon2048.Core.Tiles;
+using Dungeon2048.Core.Enemies;
 using Godot;
 
 namespace Dungeon2048.Core.Services
 {
     public static class MovementPipeline
     {
+        private const int MasochistMoveDamagePerCell = 1;
+
+        private static int ThornsRetaliationForPlayer(Player p, Enemy thorns)
+        {
+            return 3 + p.Level / 2;
+        }
+
+        private static int ThornsRetaliationForEnemy(Enemy attacker, Enemy thorns)
+        {
+            return 2 + thorns.EnemyLevel / 2;
+        }
+
         private static Vector2I CalculateFurthest(GameContext ctx, EntityBase entity, int dx, int dy, HashSet<string> occupied)
         {
             int x = entity.X, y = entity.Y;
@@ -26,7 +39,7 @@ namespace Dungeon2048.Core.Services
         private static List<EntityBase> SortForDirection(IEnumerable<EntityBase> entities, int dx, int dy)
         {
             var list = entities.ToList();
-            list.Sort((a,b) =>
+            list.Sort((a, b) =>
             {
                 if (dx > 0) { if (a.Y == b.Y) return b.X.CompareTo(a.X); return a.Y.CompareTo(b.Y); }
                 if (dx < 0) { if (a.Y == b.Y) return a.X.CompareTo(b.X); return a.Y.CompareTo(b.Y); }
@@ -48,10 +61,8 @@ namespace Dungeon2048.Core.Services
 
         private static void ResolveAfterMove(GameContext ctx, EventBus bus, EntityBase moved, int dx, int dy, HashSet<string> occupied, int startX, int startY)
         {
-            // Enter-Trigger für Endzelle
             TileRegistry.Enter(moved, ctx, moved.X, moved.Y);
 
-            // Spieler: alle passierten Zellen auslösen (Pickup von SpellDrops beim Durchsliden)
             if (moved is Player pl && (moved.X != startX || moved.Y != startY) && (dx != 0 || dy != 0))
             {
                 SweepEnterForPlayer(ctx, pl, startX, startY, moved.X, moved.Y, dx, dy);
@@ -60,7 +71,6 @@ namespace Dungeon2048.Core.Services
             int tx = moved.X + dx, ty = moved.Y + dy;
             if (tx < 0 || tx >= GameContext.GridSize || ty < 0 || ty >= GameContext.GridSize) return;
 
-            // Door enter auf direkt nächste Zelle
             var d = ctx.Door;
             if (d != null && d.IsActive && d.X == tx && d.Y == ty)
             {
@@ -72,10 +82,8 @@ namespace Dungeon2048.Core.Services
                 return;
             }
 
-            // Hit auf die Zelle vor der Entität (Stone/SpellDrop etc.)
             TileRegistry.Hit(moved, ctx, tx, ty);
 
-            // Wenn Blocker zerstört -> in die Zelle nachrücken und Enter triggern
             if (!TileRegistry.AnyBlocks(moved, ctx, tx, ty) && !occupied.Contains($"{tx},{ty}"))
             {
                 var oldKey = $"{moved.X},{moved.Y}";
@@ -84,7 +92,6 @@ namespace Dungeon2048.Core.Services
                 occupied.Add($"{moved.X},{moved.Y}");
                 TileRegistry.Enter(moved, ctx, moved.X, moved.Y);
 
-                // Spieler: auch diesen letzten Schritt als passierte Zelle behandeln
                 if (moved is Player pl2)
                 {
                     SweepEnterForPlayer(ctx, pl2, moved.X - dx, moved.Y - dy, moved.X, moved.Y, dx, dy);
@@ -92,15 +99,30 @@ namespace Dungeon2048.Core.Services
                 return;
             }
 
-            // Combat Player -> Enemy
-            if (moved is Player)
+            // Player -> Enemy
+            if (moved is Player player)
             {
-                var eidx = ctx.Enemies.FindIndex(e => e.X == tx && e.Y == ty);
+                int eidx = ctx.Enemies.FindIndex(e => e.X == tx && e.Y == ty);
                 if (eidx != -1)
                 {
                     var target = ctx.Enemies[eidx];
-                    bus.Add(new AttackEvent("Player", $"Enemy_{target.Id}", new Vector2I(dx, dy)));
-                    target.Hp -= moved.Atk;
+                    bus.AddAttackEvent(new AttackEvent("Player", $"Enemy_{target.Id}", new Vector2I(dx, dy)));
+
+                    if (target.Type == EnemyType.Masochist)
+                    {
+                        // Kein Kollisionsschaden
+                    }
+                    else
+                    {
+                        target.Hp -= moved.Atk;
+                    }
+
+                    if (target.Type == EnemyType.Thorns)
+                    {
+                        int refl = ThornsRetaliationForPlayer(player, target);
+                        ctx.Player.Hp -= refl;
+                    }
+
                     if (target.Hp <= 0)
                     {
                         var oldPx = (moved.X, moved.Y);
@@ -112,32 +134,46 @@ namespace Dungeon2048.Core.Services
 
                         occupied.Remove($"{oldPx.Item1},{oldPx.Item2}");
                         occupied.Remove($"{ex},{ey}");
+
                         moved.X = ex; moved.Y = ey;
                         occupied.Add($"{moved.X},{moved.Y}");
-                        ctx.Player.GainExperience(xp);
 
-                        // Enter auf neue Position (falls Spell/Tile dort ist)
+                        ctx.Player.GainExperience(xp);
                         TileRegistry.Enter(moved, ctx, moved.X, moved.Y);
                     }
+                    return;
                 }
-                return;
             }
 
-            // Enemy -> Player / Enemy / SpellDrop
+            // Enemy -> Player / Enemy
             if (moved is Enemy enemy && !ctx.EnemiesFrozen)
             {
                 if (ctx.Player.X == tx && ctx.Player.Y == ty)
                 {
-                    bus.Add(new AttackEvent($"Enemy_{enemy.Id}", "Player", new Vector2I(dx, dy)));
-                    ctx.Player.Hp -= enemy.Atk;
+                    if (enemy.Type != EnemyType.Thorns)
+                    {
+                        bus.AddAttackEvent(new AttackEvent($"Enemy_{enemy.Id}", "Player", new Vector2I(dx, dy)));
+                        ctx.Player.Hp -= enemy.Atk;
+                    }
                     return;
                 }
 
-                var eidx = ctx.Enemies.FindIndex(e => e.X == tx && e.Y == ty && !ReferenceEquals(e, enemy));
+                int eidx = ctx.Enemies.FindIndex(e => e.X == tx && e.Y == ty && !ReferenceEquals(e, enemy));
                 if (eidx != -1)
                 {
                     var target = ctx.Enemies[eidx];
-                    target.Hp -= enemy.Atk;
+
+                    if (target.Type != EnemyType.Masochist)
+                    {
+                        target.Hp -= enemy.Atk;
+                    }
+
+                    if (target.Type == EnemyType.Thorns)
+                    {
+                        int refl = ThornsRetaliationForEnemy(enemy, target);
+                        enemy.Hp -= refl;
+                    }
+
                     if (target.Hp <= 0)
                     {
                         var oldEx = (enemy.X, enemy.Y);
@@ -148,11 +184,22 @@ namespace Dungeon2048.Core.Services
 
                         occupied.Remove($"{oldEx.Item1},{oldEx.Item2}");
                         occupied.Remove($"{targetX},{targetY}");
+
                         enemy.X = targetX; enemy.Y = targetY;
                         occupied.Add($"{enemy.X},{enemy.Y}");
 
                         TileRegistry.Enter(enemy, ctx, enemy.X, enemy.Y);
                     }
+
+                    if (enemy.Hp <= 0)
+                    {
+                        var idxSelf = ctx.Enemies.FindIndex(e => ReferenceEquals(e, enemy));
+                        if (idxSelf >= 0) ctx.Enemies.RemoveAt(idxSelf);
+                        occupied.Remove($"{enemy.X},{enemy.Y}");
+                        ctx.RegisterEnemyKill(enemy);
+                    }
+
+                    return;
                 }
             }
         }
@@ -160,6 +207,7 @@ namespace Dungeon2048.Core.Services
         public static async Task<List<AttackEvent>> Move(GameContext ctx, int dx, int dy)
         {
             var bus = new EventBus();
+
             var entitiesToMove = ctx.EnemiesFrozen
                 ? new List<EntityBase> { ctx.Player }
                 : new List<EntityBase> { ctx.Player }.Concat(ctx.Enemies.Cast<EntityBase>()).ToList();
@@ -167,21 +215,38 @@ namespace Dungeon2048.Core.Services
             if (ctx.EnemiesFrozen) GD.Print("Freeze aktiv: nur Spieler bewegt sich.");
 
             var ordered = SortForDirection(entitiesToMove, dx, dy);
-            var occupied = new HashSet<string>(
-                new[] { $"{ctx.Player.X},{ctx.Player.Y}" }.Concat(ctx.Enemies.Select(e => $"{e.X},{e.Y}"))
-            );
+
+            var occupied = new HashSet<string>(new[] { $"{ctx.Player.X},{ctx.Player.Y}" }.Concat(ctx.Enemies.Select(e => $"{e.X},{e.Y}")));
 
             foreach (var entity in ordered)
             {
                 if (entity is Enemy en && !ctx.Enemies.Contains(en)) continue;
 
                 int startX = entity.X, startY = entity.Y;
+
                 occupied.Remove($"{entity.X},{entity.Y}");
                 var pos = CalculateFurthest(ctx, entity, dx, dy, occupied);
                 entity.X = pos.X; entity.Y = pos.Y;
                 occupied.Add($"{entity.X},{entity.Y}");
 
                 ResolveAfterMove(ctx, bus, entity, dx, dy, occupied, startX, startY);
+
+                if (entity is Enemy en2 && en2.Type == EnemyType.Masochist)
+                {
+                    int dist = System.Math.Abs(en2.X - startX) + System.Math.Abs(en2.Y - startY);
+                    if (dist > 0)
+                    {
+                        en2.Hp -= System.Math.Max(1, MasochistMoveDamagePerCell * dist);
+                        if (en2.Hp <= 0)
+                        {
+                            var idx = ctx.Enemies.FindIndex(e => ReferenceEquals(e, en2));
+                            if (idx >= 0) ctx.Enemies.RemoveAt(idx);
+                            occupied.Remove($"{en2.X},{en2.Y}");
+                            ctx.RegisterEnemyKill(en2);
+                        }
+                    }
+                }
+
                 await Task.Delay(150);
             }
 
