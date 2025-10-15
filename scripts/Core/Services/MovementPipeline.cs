@@ -99,13 +99,21 @@ namespace Dungeon2048.Core.Services
                 return;
             }
 
-            // Player -> Enemy
+            // Player -> Enemy (mit Mimic-Reveal)
             if (moved is Player player)
             {
                 int eidx = ctx.Enemies.FindIndex(e => e.X == tx && e.Y == ty);
                 if (eidx != -1)
                 {
                     var target = ctx.Enemies[eidx];
+                    
+                    // Mimic reveal beim ersten Kontakt
+                    if (target.Type == EnemyType.Mimic && target.IsDisguised)
+                    {
+                        target.IsDisguised = false;
+                        GD.Print("Das war ein MIMIC!");
+                    }
+                    
                     bus.AddAttackEvent(new AttackEvent("Player", $"Enemy_{target.Id}", new Vector2I(dx, dy)));
 
                     if (target.Type == EnemyType.Masochist)
@@ -231,6 +239,7 @@ namespace Dungeon2048.Core.Services
 
                 ResolveAfterMove(ctx, bus, entity, dx, dy, occupied, startX, startY);
 
+                // Masochist Schaden
                 if (entity is Enemy en2 && en2.Type == EnemyType.Masochist)
                 {
                     int dist = System.Math.Abs(en2.X - startX) + System.Math.Abs(en2.Y - startY);

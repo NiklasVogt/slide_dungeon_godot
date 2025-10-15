@@ -1,4 +1,6 @@
+// scripts/Nodes/GameBoard.cs
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Godot;
 using Dungeon2048.Core.Services;
@@ -23,38 +25,51 @@ namespace Dungeon2048.Nodes
         private float _reservedUiWidth = 360f;
         private readonly Dictionary<string, Node2D> _entityNodes = new();
 
-        public override void _Ready()
-        {
-            // Registries bootstrap
-            TileRegistry.Register(new StoneTile());
-            TileRegistry.Register(new DoorTile());
-            TileRegistry.Register(new SpellDropTile());
+public override void _Ready()
+{
+    // Tile Registries
+    TileRegistry.Register(new StoneTile());
+    TileRegistry.Register(new DoorTile());
+    TileRegistry.Register(new SpellDropTile());
+    
+    // Akt 1 Tiles
+    TileRegistry.Register(new GravestoneTile());
+    TileRegistry.Register(new TorchTile());
+    TileRegistry.Register(new BonePileTile());
 
-            // WICHTIG: Enemies-Namespace ist per using eingebunden
-            EnemyRegistry.Register(new GoblinArch());
-            EnemyRegistry.Register(new OrcArch());
-            EnemyRegistry.Register(new DragonArch());
-            EnemyRegistry.Register(new MasochistArch());
-            EnemyRegistry.Register(new ThornsArch());
+    // Enemy Registries - NUR AKT 1 (aus Act1Archetypes.cs)
+    EnemyRegistry.Register(new GoblinArch());
+    EnemyRegistry.Register(new SkeletonArch());
+    EnemyRegistry.Register(new RatArch());
+    EnemyRegistry.Register(new NecrophageArch());
+    EnemyRegistry.Register(new MimicArch());
+    EnemyRegistry.Register(new GoblinKingArch());
 
-            SpellRegistry.Register(SpellType.Fireball, new FireballBehavior());
-            SpellRegistry.Register(SpellType.Heal, new HealBehavior());
-            SpellRegistry.Register(SpellType.Freeze, new FreezeBehavior());
-            SpellRegistry.Register(SpellType.Lightning, new LightningBehavior());
-            SpellRegistry.Register(SpellType.Teleport, new TeleportBehavior());
+    // Spell Registries
+    SpellRegistry.Register(SpellType.Fireball, new FireballBehavior());
+    SpellRegistry.Register(SpellType.Heal, new HealBehavior());
+    SpellRegistry.Register(SpellType.Freeze, new FreezeBehavior());
+    SpellRegistry.Register(SpellType.Lightning, new LightningBehavior());
+    SpellRegistry.Register(SpellType.Teleport, new TeleportBehavior());
 
-            _ctx = new GameContext();
+    _ctx = new GameContext();
 
-            Grid ??= GetNode<TileMap>("Grid");
-            EntitiesNode ??= GetNode<Node2D>("Entities");
-            UI ??= GetNode<Control>("CanvasLayer/UI");
+    Grid ??= GetNode<TileMap>("Grid");
+    EntitiesNode ??= GetNode<Node2D>("Entities");
+    UI ??= GetNode<Control>("CanvasLayer/UI");
 
-            GetViewport().SizeChanged += OnViewportSizeChanged;
+    GetViewport().SizeChanged += OnViewportSizeChanged;
 
-            RecomputeTileSize();
-            QueueRedraw();
-            SyncScene();
-        }
+    RecomputeTileSize();
+    QueueRedraw();
+    SyncScene();
+    
+    // Debug Info
+    GD.Print($"=== Game Started ===");
+    GD.Print($"Biome: {_ctx.BiomeSystem.CurrentBiome.Name}");
+    GD.Print($"Level: {_ctx.CurrentLevel}");
+    GD.Print($"Objective: {_ctx.Objective.Description}");
+}
 
         public override void _ExitTree()
         {
@@ -89,9 +104,13 @@ namespace Dungeon2048.Nodes
             var ts = _tileSize;
             var origin = new Vector2(Padding, Padding);
             var boardSize = new Vector2(size * ts, size * ts);
-            var bg = new Color(0.12f, 0.12f, 0.12f, 1f);
+            
+            // Biome-basierte Hintergrundfarbe
+            var bg = _ctx.BiomeSystem.GetBackgroundColor();
             DrawRect(new Rect2(origin, boardSize), bg);
-            var col = new Color(0.25f, 0.25f, 0.25f, 1f);
+            
+            // Biome-basierte Gridfarbe
+            var col = _ctx.BiomeSystem.GetGridColor();
 
             for (int i = 0; i <= size; i++)
             {
@@ -112,6 +131,13 @@ namespace Dungeon2048.Nodes
                 if (key.Keycode == Key.Left) dir = new Vector2I(-1, 0);
                 if (key.Keycode == Key.Right) dir = new Vector2I(1, 0);
                 if (dir != Vector2I.Zero) await OnArrowMove(dir);
+                
+                // Debug Commands (optional)
+                #if DEBUG
+                if (key.Keycode == Key.F1) Core.Debug.DebugCommands.SpawnTestEnemies(_ctx);
+                if (key.Keycode == Key.F2) Core.Debug.DebugCommands.PrintBiomeInfo(_ctx);
+                if (key.Keycode == Key.F3) Core.Debug.DebugCommands.SpawnBoss(_ctx);
+                #endif
             }
         }
 
@@ -127,15 +153,28 @@ namespace Dungeon2048.Nodes
 
             AnimateEntities();
             await ToSignal(GetTree().CreateTimer(0.12f), SceneTreeTimer.SignalName.Timeout);
+            
             foreach (var ev in attackEvents)
             {
                 AttackFx(ev.Attacker, ev.Target, ev.Dir);
             }
+            
             await ToSignal(GetTree().CreateTimer(0.12f), SceneTreeTimer.SignalName.Timeout);
             await ToSignal(GetTree().CreateTimer(0.18f), SceneTreeTimer.SignalName.Timeout);
 
             SpawnService.NextTickSpawns(_ctx);
             SyncScene();
+            
+            // Check Game Over
+            if (_ctx.Player.Hp <= 0)
+            {
+                GD.Print("=== GAME OVER ===");
+                GD.Print($"Reached Level: {_ctx.CurrentLevel}");
+                GD.Print($"Total Kills: {_ctx.TotalEnemiesKilled}");
+                GD.Print($"Total Swipes: {_ctx.TotalSwipes}");
+                // Hier könnte Game Over Screen gezeigt werden
+            }
+            
             _animating = false;
         }
 
@@ -192,6 +231,7 @@ namespace Dungeon2048.Nodes
             {
                 var badge = new Label { Name = "Badge", Text = badgeText };
                 badge.Position = new Vector2(_tileSize - 22, 2);
+                badge.AddThemeFontSizeOverride("font_size", 14);
                 wrap.AddChild(badge);
             }
 
@@ -217,7 +257,11 @@ namespace Dungeon2048.Nodes
             if (badgeText != null)
             {
                 var badge = wrap.GetNodeOrNull<Label>("Badge");
-                if (badge != null) badge.Text = badgeText;
+                if (badge != null)
+                {
+                    badge.Text = badgeText;
+                    badge.Position = new Vector2(_tileSize - 22, 2);
+                }
             }
         }
 
@@ -231,33 +275,83 @@ namespace Dungeon2048.Nodes
                 UpdateEntityNodeVisuals(name, _ctx.Player.Hp);
             }
 
-            // Enemies mit Farben je Typ (inkl. neue Rare-Typen)
+            // Enemies mit Farben je Typ
             foreach (var e in _ctx.Enemies)
             {
                 var name = $"Enemy_{e.Id}";
                 var color = e.Type switch
                 {
-                    EnemyType.Goblin    => new Color("3cb44b"), // grün
-                    EnemyType.Orc       => new Color("f58231"), // orange
-                    EnemyType.Dragon    => new Color("911eb4"), // violett
-                    EnemyType.Boss      => new Color("111111"), // fast schwarz
-                    EnemyType.Masochist => new Color("4699e1"), // blau-türkis
-                    EnemyType.Thorns    => new Color("22aa22"), // dunkelgrün
-                    _                   => new Color("ff5f5f")
+                    // Akt 1
+                    EnemyType.Goblin       => new Color("3cb44b"),     // grün
+                    EnemyType.Skeleton     => new Color("e6d5b8"),     // beige
+                    EnemyType.Rat          => new Color("6b5b4d"),     // grau-braun
+                    EnemyType.Necrophage   => new Color("663399"),     // dunkelviolett
+                    EnemyType.Mimic        => e.IsDisguised ? new Color("ffd700") : new Color("dc143c"), // gold oder rot
+                    EnemyType.GoblinKing   => new Color("0a5f0a"),     // dunkelgrün
+                    
+                    // Bestehende
+                    EnemyType.Orc          => new Color("f58231"),     // orange
+                    EnemyType.Dragon       => new Color("911eb4"),     // violett
+                    EnemyType.Boss         => new Color("111111"),     // schwarz
+                    EnemyType.Masochist    => new Color("4699e1"),     // blau
+                    EnemyType.Thorns       => new Color("22aa22"),     // dunkelgrün
+                    _                      => new Color("ff5f5f")
                 };
 
-                var node = GetOrCreateEntityNode(name, 6, color, e.Hp, showBadge: true, badgeText: e.IsBoss ? "👑" : e.EnemyLevel.ToString());
+                string badge;
+                if (e.IsBoss)
+                    badge = "👑";
+                else if (e.Type == EnemyType.Mimic && e.IsDisguised)
+                    badge = "?";
+                else if (e.Type == EnemyType.Necrophage && e.HealedThisRound > 0)
+                    badge = $"+{e.HealedThisRound}";
+                else
+                    badge = e.EnemyLevel.ToString();
+
+                var node = GetOrCreateEntityNode(name, 6, color, e.Hp, showBadge: true, badgeText: badge);
                 SlideNodeTo(node, MapToLocal(new Vector2I(e.X, e.Y)));
-                UpdateEntityNodeVisuals(name, e.Hp, e.IsBoss ? "👑" : e.EnemyLevel.ToString());
+                UpdateEntityNodeVisuals(name, e.Hp, badge);
+                
+                // Reset heal counter für nächste Runde
+                if (e.Type == EnemyType.Necrophage)
+                    e.HealedThisRound = 0;
             }
 
             // Stones
             foreach (var s in _ctx.Stones)
             {
                 var name = $"Stone_{s.Id}";
-                var node = GetOrCreateEntityNode(name, 3, Colors.Gray, s.HitCount + 1);
+                var node = GetOrCreateEntityNode(name, 3, Colors.Gray, Stone.MaxHits - s.HitCount);
                 SlideNodeTo(node, MapToLocal(new Vector2I(s.X, s.Y)));
-                UpdateEntityNodeVisuals(name, s.HitCount + 1);
+                UpdateEntityNodeVisuals(name, Stone.MaxHits - s.HitCount);
+            }
+            
+            // Gravestones
+            foreach (var g in _ctx.Gravestones)
+            {
+                var name = $"Gravestone_{g.Id}";
+                var node = GetOrCreateEntityNode(name, 3, new Color("4a4a4a"), Gravestone.MaxHits - g.HitCount);
+                SlideNodeTo(node, MapToLocal(new Vector2I(g.X, g.Y)));
+                UpdateEntityNodeVisuals(name, Gravestone.MaxHits - g.HitCount);
+            }
+            
+            // Torches
+            foreach (var t in _ctx.Torches)
+            {
+                var name = $"Torch_{t.Id}";
+                var flickerColor = t.IsLit ? new Color("ff8c00") : new Color("8b4513");
+                var node = GetOrCreateEntityNode(name, 2, flickerColor, 1);
+                SlideNodeTo(node, MapToLocal(new Vector2I(t.X, t.Y)));
+                UpdateEntityNodeVisuals(name, 1);
+            }
+            
+            // Bone Piles
+            foreach (var b in _ctx.BonePiles)
+            {
+                var name = $"BonePile_{b.Id}";
+                var node = GetOrCreateEntityNode(name, 3, new Color("d3d3d3"), BonePile.MaxHits - b.HitCount);
+                SlideNodeTo(node, MapToLocal(new Vector2I(b.X, b.Y)));
+                UpdateEntityNodeVisuals(name, BonePile.MaxHits - b.HitCount);
             }
 
             // Spells
@@ -283,9 +377,12 @@ namespace Dungeon2048.Nodes
 
         private void PruneMissingNodes()
         {
-            var alive = new System.Collections.Generic.HashSet<string> { "Player" };
+            var alive = new HashSet<string> { "Player" };
             foreach (var e in _ctx.Enemies) alive.Add($"Enemy_{e.Id}");
             foreach (var s in _ctx.Stones) alive.Add($"Stone_{s.Id}");
+            foreach (var g in _ctx.Gravestones) alive.Add($"Gravestone_{g.Id}");
+            foreach (var t in _ctx.Torches) alive.Add($"Torch_{t.Id}");
+            foreach (var b in _ctx.BonePiles) alive.Add($"BonePile_{b.Id}");
             foreach (var d in _ctx.SpellDrops) alive.Add($"Spell_{d.Id}");
             if (_ctx.Door != null && _ctx.Door.IsActive) alive.Add("Door");
 
@@ -319,6 +416,16 @@ namespace Dungeon2048.Nodes
                 var hit = CreateTween();
                 hit.TweenProperty(targetNode, "scale", new Vector2(1.06f, 1.06f), 0.05);
                 hit.TweenProperty(targetNode, "scale", new Vector2(1f, 1f), 0.08);
+                
+                // Screen shake bei kritischen Hits
+                var wrap = targetNode.GetNodeOrNull<Control>("Wrap");
+                if (wrap != null)
+                {
+                    var shake = CreateTween();
+                    shake.TweenProperty(wrap, "position", wrap.Position + new Vector2(3, 0), 0.03);
+                    shake.TweenProperty(wrap, "position", wrap.Position + new Vector2(-3, 0), 0.03);
+                    shake.TweenProperty(wrap, "position", wrap.Position, 0.03);
+                }
             }
         }
 

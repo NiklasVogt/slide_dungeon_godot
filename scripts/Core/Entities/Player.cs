@@ -57,19 +57,29 @@ namespace Dungeon2048.Core.Entities
         }
 
         // Fix: Verweis auf EnemyType aus Dungeon2048.Core.Entities statt Dungeon2048.Core.Enemies
-        public static int CalculateXpReward(EnemyType type, int enemyLevel, bool isBoss)
+      public static int CalculateXpReward(EnemyType type, int enemyLevel, bool isBoss)
         {
             int baseXp = type switch
             {
-                EnemyType.Goblin => 15,
-                EnemyType.Orc => 35,
-                EnemyType.Dragon => 75,
-                EnemyType.Boss => 150,
+                // Akt 1
+                EnemyType.Goblin       => 15,
+                EnemyType.Skeleton     => 18,
+                EnemyType.Rat          => 8,
+                EnemyType.Necrophage   => 45,
+                EnemyType.Mimic        => 60,
+                EnemyType.GoblinKing   => 200,
+                
+                // Bestehende
+                EnemyType.Orc          => 35,
+                EnemyType.Dragon       => 75,
+                EnemyType.Boss         => 150,
+                EnemyType.Masochist    => 50,
+                EnemyType.Thorns       => 40,
                 _ => 10
             };
             double levelMul = 1 + enemyLevel * 0.3;
             double bossMul = isBoss ? 3.0 : 1.0;
-            return (int)Math.Round(baseXp * levelMul * bossMul);
+            return (int)System.Math.Round(baseXp * levelMul * bossMul);
         }
     }
 }

@@ -7,6 +7,7 @@ namespace Dungeon2048.Nodes
     public partial class UI : Control
     {
         private Label _title;
+        private Label _biomeLabel; // NEU
         private ProgressBar _objBar;
         private Label _objText;
         private Label _stats;
@@ -32,14 +33,14 @@ namespace Dungeon2048.Nodes
             var panel = new Panel
             {
                 Name = "Panel",
-                CustomMinimumSize = new Vector2(_desiredWidth, 260)
+                CustomMinimumSize = new Vector2(_desiredWidth, 280) // Etwas höher
             };
             AddChild(panel);
 
             var vb = new VBoxContainer
             {
                 Name = "VBox",
-                CustomMinimumSize = new Vector2(_desiredWidth - 20f, 240),
+                CustomMinimumSize = new Vector2(_desiredWidth - 20f, 260),
                 SizeFlagsHorizontal = SizeFlags.ExpandFill
             };
             vb.Position = new Vector2(10, 10);
@@ -47,6 +48,11 @@ namespace Dungeon2048.Nodes
 
             _title = new Label { Text = "Dungeon 2048" };
             _title.AddThemeFontSizeOverride("font_size", 18);
+            
+            // NEU: Biome Label
+            _biomeLabel = new Label { Text = "Biome: ..." };
+            _biomeLabel.AddThemeFontSizeOverride("font_size", 12);
+            
             _objBar = new ProgressBar { MinValue = 0, MaxValue = 1, Value = 0, SizeFlagsHorizontal = SizeFlags.ExpandFill };
             _objText = new Label { Text = "…" };
             _stats = new Label { Text = "HP/ATK/Swipes/Kills" };
@@ -67,6 +73,7 @@ namespace Dungeon2048.Nodes
             spells.AddChild(_spell2);
 
             vb.AddChild(_title);
+            vb.AddChild(_biomeLabel); // NEU
             vb.AddChild(_objBar);
             vb.AddChild(_objText);
             vb.AddChild(_stats);
@@ -122,15 +129,23 @@ namespace Dungeon2048.Nodes
             return b;
         }
 
-        // Neue Signatur: GameContext statt GameState
         public void UpdateFromState(GameContext gs)
         {
             if (gs == null) return;
 
             _title.Text = $"Level {gs.CurrentLevel} {gs.Objective.Icon} {gs.Objective.Description}";
+            
+            // NEU: Biome-Info
+            var biome = gs.BiomeSystem?.CurrentBiome;
+            if (biome != null)
+            {
+                _biomeLabel.Text = $"🏛️ {biome.Name} (Level {biome.StartLevel}-{biome.EndLevel})";
+                _biomeLabel.Modulate = biome.AmbientColor;
+            }
+            
             _objBar.Value = gs.Objective.Progress;
             _objText.Text = gs.Objective.ProgressText;
-            _stats.Text = $"HP {gs.Player.Hp}/{gs.Player.MaxHp} ATK {gs.Player.Atk} Swipes {gs.TotalSwipes} Kills {gs.TotalEnemiesKilled}";
+            _stats.Text = $"HP {gs.Player.Hp}/{gs.Player.MaxHp} | ATK {gs.Player.Atk} | LVL {gs.Player.Level}\nSwipes {gs.TotalSwipes} | Kills {gs.TotalEnemiesKilled}";
 
             SetSpellSlot(_spell0, gs, 0);
             SetSpellSlot(_spell1, gs, 1);
@@ -163,7 +178,6 @@ namespace Dungeon2048.Nodes
             }
         }
 
-        // Optional: kompatibler Shim, falls Board noch OldShim aufruft
         public void UpdateFromStateOldShim(GameContext gs) => UpdateFromState(gs);
     }
 }
