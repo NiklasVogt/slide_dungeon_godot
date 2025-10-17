@@ -210,170 +210,201 @@ public override void _Ready()
             tw.TweenProperty(node, "position", target, duration);
         }
 
-        private Node2D GetOrCreateEntityNode(string name, int z, Color color, int hp, bool showBadge = false, string badgeText = "")
+private Node2D GetOrCreateEntityNode(string name, int z, Color color, int hp, bool showBadge = false, string badgeText = "", string displayName = "")
+{
+    if (_entityNodes.TryGetValue(name, out var node))
+        return node;
+
+    node = new Node2D { Name = name, ZIndex = z };
+    var wrap = new Control { Name = "Wrap", CustomMinimumSize = new Vector2(_tileSize, _tileSize) };
+    var box = new ColorRect { Name = "Box", Color = color, Size = new Vector2(_tileSize, _tileSize) };
+    wrap.AddChild(box);
+
+    // HP Label (zentriert)
+    var hpLbl = new Label { Name = "HP", Text = hp.ToString() };
+    hpLbl.HorizontalAlignment = HorizontalAlignment.Center;
+    hpLbl.VerticalAlignment = VerticalAlignment.Center;
+    hpLbl.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+    hpLbl.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+    wrap.AddChild(hpLbl);
+
+    // Badge (oben rechts)
+    if (showBadge)
+    {
+        var badge = new Label { Name = "Badge", Text = badgeText };
+        badge.Position = new Vector2(_tileSize - 22, 2);
+        badge.AddThemeFontSizeOverride("font_size", 14);
+        wrap.AddChild(badge);
+    }
+    
+    // Display Name (unten mitte) - NEU
+    if (!string.IsNullOrEmpty(displayName))
+    {
+        var nameLabel = new Label { Name = "DisplayName", Text = displayName };
+        nameLabel.HorizontalAlignment = HorizontalAlignment.Center;
+        nameLabel.Position = new Vector2(0, _tileSize - 18);
+        nameLabel.Size = new Vector2(_tileSize, 18);
+        nameLabel.AddThemeFontSizeOverride("font_size", 10);
+        nameLabel.AddThemeColorOverride("font_color", Colors.White);
+        nameLabel.AddThemeColorOverride("font_outline_color", Colors.Black);
+        nameLabel.AddThemeConstantOverride("outline_size", 2);
+        wrap.AddChild(nameLabel);
+    }
+
+    node.AddChild(wrap);
+    EntitiesNode.AddChild(node);
+    _entityNodes[name] = node;
+    return node;
+}
+
+    private void UpdateEntityNodeVisuals(string name, int hp, string? badgeText = null, string? displayName = null)
+    {
+        if (!_entityNodes.TryGetValue(name, out var node)) return;
+        var wrap = node.GetNodeOrNull<Control>("Wrap");
+        if (wrap == null) return;
+
+        wrap.CustomMinimumSize = new Vector2(_tileSize, _tileSize);
+        var box = wrap.GetNodeOrNull<ColorRect>("Box");
+        if (box != null) box.Size = new Vector2(_tileSize, _tileSize);
+
+        var hpLbl = wrap.GetNodeOrNull<Label>("HP");
+        if (hpLbl != null) hpLbl.Text = hp.ToString();
+
+        if (badgeText != null)
         {
-            if (_entityNodes.TryGetValue(name, out var node))
-                return node;
-
-            node = new Node2D { Name = name, ZIndex = z };
-            var wrap = new Control { Name = "Wrap", CustomMinimumSize = new Vector2(_tileSize, _tileSize) };
-            var box = new ColorRect { Name = "Box", Color = color, Size = new Vector2(_tileSize, _tileSize) };
-            wrap.AddChild(box);
-
-            var hpLbl = new Label { Name = "HP", Text = hp.ToString() };
-            hpLbl.HorizontalAlignment = HorizontalAlignment.Center;
-            hpLbl.VerticalAlignment = VerticalAlignment.Center;
-            hpLbl.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-            hpLbl.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
-            wrap.AddChild(hpLbl);
-
-            if (showBadge)
+            var badge = wrap.GetNodeOrNull<Label>("Badge");
+            if (badge != null)
             {
-                var badge = new Label { Name = "Badge", Text = badgeText };
+                badge.Text = badgeText;
                 badge.Position = new Vector2(_tileSize - 22, 2);
-                badge.AddThemeFontSizeOverride("font_size", 14);
-                wrap.AddChild(badge);
             }
-
-            node.AddChild(wrap);
-            EntitiesNode.AddChild(node);
-            _entityNodes[name] = node;
-            return node;
         }
-
-        private void UpdateEntityNodeVisuals(string name, int hp, string? badgeText = null)
+        
+        // Display Name Update - NEU
+        if (displayName != null)
         {
-            if (!_entityNodes.TryGetValue(name, out var node)) return;
-            var wrap = node.GetNodeOrNull<Control>("Wrap");
-            if (wrap == null) return;
-
-            wrap.CustomMinimumSize = new Vector2(_tileSize, _tileSize);
-            var box = wrap.GetNodeOrNull<ColorRect>("Box");
-            if (box != null) box.Size = new Vector2(_tileSize, _tileSize);
-
-            var hpLbl = wrap.GetNodeOrNull<Label>("HP");
-            if (hpLbl != null) hpLbl.Text = hp.ToString();
-
-            if (badgeText != null)
+            var nameLabel = wrap.GetNodeOrNull<Label>("DisplayName");
+            if (nameLabel != null)
             {
-                var badge = wrap.GetNodeOrNull<Label>("Badge");
-                if (badge != null)
-                {
-                    badge.Text = badgeText;
-                    badge.Position = new Vector2(_tileSize - 22, 2);
-                }
+                nameLabel.Text = displayName;
+                nameLabel.Position = new Vector2(0, _tileSize - 18);
+                nameLabel.Size = new Vector2(_tileSize, 18);
             }
         }
+    }
 
         private void AnimateEntities()
+{
+    // Player
+    {
+        var name = "Player";
+        var node = GetOrCreateEntityNode(name, 8, Colors.SkyBlue, _ctx.Player.Hp, displayName: "Spieler");
+        SlideNodeTo(node, MapToLocal(new Vector2I(_ctx.Player.X, _ctx.Player.Y)));
+        UpdateEntityNodeVisuals(name, _ctx.Player.Hp, displayName: "Spieler");
+    }
+
+    // Enemies mit Farben je Typ
+    foreach (var e in _ctx.Enemies)
+    {
+        var name = $"Enemy_{e.Id}";
+        var color = e.Type switch
         {
-            // Player
-            {
-                var name = "Player";
-                var node = GetOrCreateEntityNode(name, 8, Colors.SkyBlue, _ctx.Player.Hp);
-                SlideNodeTo(node, MapToLocal(new Vector2I(_ctx.Player.X, _ctx.Player.Y)));
-                UpdateEntityNodeVisuals(name, _ctx.Player.Hp);
-            }
-
-            // Enemies mit Farben je Typ
-            foreach (var e in _ctx.Enemies)
-            {
-                var name = $"Enemy_{e.Id}";
-                var color = e.Type switch
-                {
-                    // Akt 1
-                    EnemyType.Goblin       => new Color("3cb44b"),     // grün
-                    EnemyType.Skeleton     => new Color("e6d5b8"),     // beige
-                    EnemyType.Rat          => new Color("6b5b4d"),     // grau-braun
-                    EnemyType.Necrophage   => new Color("663399"),     // dunkelviolett
-                    EnemyType.Mimic        => e.IsDisguised ? new Color("ffd700") : new Color("dc143c"), // gold oder rot
-                    EnemyType.GoblinKing   => new Color("0a5f0a"),     // dunkelgrün
-                    
-                    // Bestehende
-                    EnemyType.Orc          => new Color("f58231"),     // orange
-                    EnemyType.Dragon       => new Color("911eb4"),     // violett
-                    EnemyType.Boss         => new Color("111111"),     // schwarz
-                    EnemyType.Masochist    => new Color("4699e1"),     // blau
-                    EnemyType.Thorns       => new Color("22aa22"),     // dunkelgrün
-                    _                      => new Color("ff5f5f")
-                };
-
-                string badge;
-                if (e.IsBoss)
-                    badge = "👑";
-                else if (e.Type == EnemyType.Mimic && e.IsDisguised)
-                    badge = "?";
-                else if (e.Type == EnemyType.Necrophage && e.HealedThisRound > 0)
-                    badge = $"+{e.HealedThisRound}";
-                else
-                    badge = e.EnemyLevel.ToString();
-
-                var node = GetOrCreateEntityNode(name, 6, color, e.Hp, showBadge: true, badgeText: badge);
-                SlideNodeTo(node, MapToLocal(new Vector2I(e.X, e.Y)));
-                UpdateEntityNodeVisuals(name, e.Hp, badge);
-                
-                // Reset heal counter für nächste Runde
-                if (e.Type == EnemyType.Necrophage)
-                    e.HealedThisRound = 0;
-            }
-
-            // Stones
-            foreach (var s in _ctx.Stones)
-            {
-                var name = $"Stone_{s.Id}";
-                var node = GetOrCreateEntityNode(name, 3, Colors.Gray, Stone.MaxHits - s.HitCount);
-                SlideNodeTo(node, MapToLocal(new Vector2I(s.X, s.Y)));
-                UpdateEntityNodeVisuals(name, Stone.MaxHits - s.HitCount);
-            }
+            // Akt 1
+            EnemyType.Goblin       => new Color("3cb44b"),     // grün
+            EnemyType.Skeleton     => new Color("e6d5b8"),     // beige
+            EnemyType.Rat          => new Color("6b5b4d"),     // grau-braun
+            EnemyType.Necrophage   => new Color("663399"),     // dunkelviolett
+            EnemyType.Mimic        => e.IsDisguised ? new Color("ffd700") : new Color("dc143c"), // gold oder rot
+            EnemyType.GoblinKing   => new Color("0a5f0a"),     // dunkelgrün
             
-            // Gravestones
-            foreach (var g in _ctx.Gravestones)
-            {
-                var name = $"Gravestone_{g.Id}";
-                var node = GetOrCreateEntityNode(name, 3, new Color("4a4a4a"), Gravestone.MaxHits - g.HitCount);
-                SlideNodeTo(node, MapToLocal(new Vector2I(g.X, g.Y)));
-                UpdateEntityNodeVisuals(name, Gravestone.MaxHits - g.HitCount);
-            }
-            
-            // Torches
-            foreach (var t in _ctx.Torches)
-            {
-                var name = $"Torch_{t.Id}";
-                var flickerColor = t.IsLit ? new Color("ff8c00") : new Color("8b4513");
-                var node = GetOrCreateEntityNode(name, 2, flickerColor, 1);
-                SlideNodeTo(node, MapToLocal(new Vector2I(t.X, t.Y)));
-                UpdateEntityNodeVisuals(name, 1);
-            }
-            
-            // Bone Piles
-            foreach (var b in _ctx.BonePiles)
-            {
-                var name = $"BonePile_{b.Id}";
-                var node = GetOrCreateEntityNode(name, 3, new Color("d3d3d3"), BonePile.MaxHits - b.HitCount);
-                SlideNodeTo(node, MapToLocal(new Vector2I(b.X, b.Y)));
-                UpdateEntityNodeVisuals(name, BonePile.MaxHits - b.HitCount);
-            }
+            // Bestehende
+            EnemyType.Orc          => new Color("f58231"),     // orange
+            EnemyType.Dragon       => new Color("911eb4"),     // violett
+            EnemyType.Boss         => new Color("111111"),     // schwarz
+            EnemyType.Masochist    => new Color("4699e1"),     // blau
+            EnemyType.Thorns       => new Color("22aa22"),     // dunkelgrün
+            _                      => new Color("ff5f5f")
+        };
 
-            // Spells
-            foreach (var d in _ctx.SpellDrops)
-            {
-                var name = $"Spell_{d.Id}";
-                var node = GetOrCreateEntityNode(name, 4, Colors.Gold, 1);
-                SlideNodeTo(node, MapToLocal(new Vector2I(d.X, d.Y)));
-                UpdateEntityNodeVisuals(name, 1);
-            }
+        string badge;
+        if (e.IsBoss)
+            badge = "👑";
+        else if (e.Type == EnemyType.Mimic && e.IsDisguised)
+            badge = "?";
+        else if (e.Type == EnemyType.Necrophage && e.HealedThisRound > 0)
+            badge = $"+{e.HealedThisRound}";
+        else
+            badge = e.EnemyLevel.ToString();
 
-            // Door
-            if (_ctx.Door != null && _ctx.Door.IsActive)
-            {
-                var name = "Door";
-                var node = GetOrCreateEntityNode(name, 2, Colors.LightGreen, 1);
-                SlideNodeTo(node, MapToLocal(new Vector2I(_ctx.Door.X, _ctx.Door.Y)));
-                UpdateEntityNodeVisuals(name, 1);
-            }
+        // NEU: DisplayName für jeden Gegner
+        var displayName = e.DisplayName;
+        
+        var node = GetOrCreateEntityNode(name, 6, color, e.Hp, showBadge: true, badgeText: badge, displayName: displayName);
+        SlideNodeTo(node, MapToLocal(new Vector2I(e.X, e.Y)));
+        UpdateEntityNodeVisuals(name, e.Hp, badge, displayName);
+        
+        // Reset heal counter für nächste Runde
+        if (e.Type == EnemyType.Necrophage)
+            e.HealedThisRound = 0;
+    }
 
-            PruneMissingNodes();
-        }
+    // Stones
+    foreach (var s in _ctx.Stones)
+    {
+        var name = $"Stone_{s.Id}";
+        var node = GetOrCreateEntityNode(name, 3, Colors.Gray, Stone.MaxHits - s.HitCount, displayName: "Stein");
+        SlideNodeTo(node, MapToLocal(new Vector2I(s.X, s.Y)));
+        UpdateEntityNodeVisuals(name, Stone.MaxHits - s.HitCount, displayName: "Stein");
+    }
+    
+    // Gravestones
+    foreach (var g in _ctx.Gravestones)
+    {
+        var name = $"Gravestone_{g.Id}";
+        var node = GetOrCreateEntityNode(name, 3, new Color("4a4a4a"), Gravestone.MaxHits - g.HitCount, displayName: "Grabstein");
+        SlideNodeTo(node, MapToLocal(new Vector2I(g.X, g.Y)));
+        UpdateEntityNodeVisuals(name, Gravestone.MaxHits - g.HitCount, displayName: "Grabstein");
+    }
+    
+    // Torches
+    foreach (var t in _ctx.Torches)
+    {
+        var name = $"Torch_{t.Id}";
+        var flickerColor = t.IsLit ? new Color("ff8c00") : new Color("8b4513");
+        var node = GetOrCreateEntityNode(name, 2, flickerColor, 1, displayName: "Fackel");
+        SlideNodeTo(node, MapToLocal(new Vector2I(t.X, t.Y)));
+        UpdateEntityNodeVisuals(name, 1, displayName: "Fackel");
+    }
+    
+    // Bone Piles
+    foreach (var b in _ctx.BonePiles)
+    {
+        var name = $"BonePile_{b.Id}";
+        var node = GetOrCreateEntityNode(name, 3, new Color("d3d3d3"), BonePile.MaxHits - b.HitCount, displayName: "Knochen");
+        SlideNodeTo(node, MapToLocal(new Vector2I(b.X, b.Y)));
+        UpdateEntityNodeVisuals(name, BonePile.MaxHits - b.HitCount, displayName: "Knochen");
+    }
+
+    // Spells
+    foreach (var d in _ctx.SpellDrops)
+    {
+        var name = $"Spell_{d.Id}";
+        var node = GetOrCreateEntityNode(name, 4, Colors.Gold, 1, displayName: "Zauber");
+        SlideNodeTo(node, MapToLocal(new Vector2I(d.X, d.Y)));
+        UpdateEntityNodeVisuals(name, 1, displayName: "Zauber");
+    }
+
+    // Door
+    if (_ctx.Door != null && _ctx.Door.IsActive)
+    {
+        var name = "Door";
+        var node = GetOrCreateEntityNode(name, 2, Colors.LightGreen, 1, displayName: "Tür");
+        SlideNodeTo(node, MapToLocal(new Vector2I(_ctx.Door.X, _ctx.Door.Y)));
+        UpdateEntityNodeVisuals(name, 1, displayName: "Tür");
+    }
+
+    PruneMissingNodes();
+}
 
         private void PruneMissingNodes()
         {
