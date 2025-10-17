@@ -1,13 +1,16 @@
+// scripts/Nodes/UI.cs
 using Godot;
 using Dungeon2048.Core.Services;
 using Dungeon2048.Core.Spells;
+using Dungeon2048.Core.Objectives;
+using System.Linq;
 
 namespace Dungeon2048.Nodes
 {
     public partial class UI : Control
     {
         private Label _title;
-        private Label _biomeLabel; // NEU
+        private Label _biomeLabel;
         private ProgressBar _objBar;
         private Label _objText;
         private Label _stats;
@@ -33,7 +36,7 @@ namespace Dungeon2048.Nodes
             var panel = new Panel
             {
                 Name = "Panel",
-                CustomMinimumSize = new Vector2(_desiredWidth, 280) // Etwas höher
+                CustomMinimumSize = new Vector2(_desiredWidth, 280)
             };
             AddChild(panel);
 
@@ -49,7 +52,6 @@ namespace Dungeon2048.Nodes
             _title = new Label { Text = "Dungeon 2048" };
             _title.AddThemeFontSizeOverride("font_size", 18);
             
-            // NEU: Biome Label
             _biomeLabel = new Label { Text = "Biome: ..." };
             _biomeLabel.AddThemeFontSizeOverride("font_size", 12);
             
@@ -73,7 +75,7 @@ namespace Dungeon2048.Nodes
             spells.AddChild(_spell2);
 
             vb.AddChild(_title);
-            vb.AddChild(_biomeLabel); // NEU
+            vb.AddChild(_biomeLabel);
             vb.AddChild(_objBar);
             vb.AddChild(_objText);
             vb.AddChild(_stats);
@@ -133,13 +135,27 @@ namespace Dungeon2048.Nodes
         {
             if (gs == null) return;
 
-            _title.Text = $"Level {gs.CurrentLevel} {gs.Objective.Icon} {gs.Objective.Description}";
+            // Boss-Level spezielle Anzeige
+            string levelIndicator = "";
+            if (ObjectiveService.IsBossLevel(gs.CurrentLevel))
+            {
+                levelIndicator = " 👑 BOSS LEVEL 👑";
+            }
             
-            // NEU: Biome-Info
+            _title.Text = $"Level {gs.CurrentLevel}{levelIndicator} {gs.Objective.Icon} {gs.Objective.Description}";
+            
             var biome = gs.BiomeSystem?.CurrentBiome;
             if (biome != null)
             {
-                _biomeLabel.Text = $"🏛️ {biome.Name} (Level {biome.StartLevel}-{biome.EndLevel})";
+                string biomeText = $"🏛️ {biome.Name} (Level {biome.StartLevel}-{biome.EndLevel})";
+                
+                // Boss-Status anzeigen
+                if (gs.Enemies.Any(e => e.IsBoss))
+                {
+                    biomeText += " | ⚔️ BOSS AKTIV!";
+                }
+                
+                _biomeLabel.Text = biomeText;
                 _biomeLabel.Modulate = biome.AmbientColor;
             }
             

@@ -1,4 +1,4 @@
-// scripts/Core/Services/GameContext.cs - ERWEITERT
+// scripts/Core/Services/GameContext.cs
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -21,7 +21,7 @@ namespace Dungeon2048.Core.Services
         public readonly List<SpellDrop> SpellDrops = new();
         public Door? Door;
         
-        // Neue Tile-Listen für Akt 1
+        // Tile-Listen für Akt 1
         public readonly List<Gravestone> Gravestones = new();
         public readonly List<Torch> Torches = new();
         public readonly List<BonePile> BonePiles = new();
@@ -33,7 +33,7 @@ namespace Dungeon2048.Core.Services
         public bool EnemiesFrozen = false;
         
         // Boss-State
-        public int GoblinKingSpawnCounter = 0; // Für Boss-Mechanik
+        public int GoblinKingSpawnCounter = 0;
 
         public Random Rng = new();
         
@@ -62,9 +62,11 @@ namespace Dungeon2048.Core.Services
             Objective.OnSwipe();
             
             // Boss-Mechanik: Goblin King spawnt Adds
-            if (Enemies.Any(e => e.Type == EnemyType.GoblinKing))
+            if (Enemies.Any(e => e.IsBoss))
             {
                 GoblinKingSpawnCounter++;
+                
+                // Adds spawnen
                 if (GoblinKingSpawnCounter >= 3)
                 {
                     SpawnGoblinKingAdds();
@@ -72,32 +74,85 @@ namespace Dungeon2048.Core.Services
                 }
             }
             
+            // Boss spawnen wenn Boss-Objective und Swipe-Ziel erreicht
             if (Objective is BossObjective bo && !bo.BossSpawned && bo.Current >= bo.Target)
             {
                 SpawnBoss();
                 bo.BossSpawned = true;
             }
+            
+            // NEU: BonePiles altern und reviven
+            AgeBonePiles();
+            
             CheckAndSpawnDoor();
         }
 
-        public void SpawnEnemies()
+        // NEU: BonePile Aging und Revival
+        private void AgeBonePiles()
         {
-            int count = CalculateEnemySpawnCount();
-            var biome = BiomeSystem.CurrentBiome;
+            var toRevive = new List<BonePile>();
             
-            for (int i = 0; i < count; i++)
+            foreach (var pile in BonePiles)
             {
-                var e = SpawnBiomeEnemy(biome);
-                if (e != null) Enemies.Add(e);
+                pile.SwipesAlive++;
+                
+                if (pile.ShouldRevive)
+                {
+                    toRevive.Add(pile);
+                }
             }
             
-            // Spell Drop
-            if (Rng.NextDouble() < 0.08)
+            // Revive Skeletons
+            foreach (var pile in toRevive)
             {
-                var pos = RandomFreeCell();
-                SpellDrops.Add(new SpellDrop(pos.X, pos.Y, SpellFactory.CreateRandom(Player.Level, Rng)));
+                BonePiles.Remove(pile);
+                
+                // Spawne Skelett an der Position
+                var level = CalculateEnemyLevel();
+                var skeleton = EnemyRegistry.Get(EnemyType.Skeleton).Create(pile.X, pile.Y, level);
+                
+                // Biome Modifiers anwenden
+                var biome = BiomeSystem.CurrentBiome;
+                skeleton.Hp = (int)(skeleton.Hp * biome.EnemyHealthMultiplier);
+                skeleton.Atk = (int)(skeleton.Atk * biome.EnemyDamageMultiplier);
+                
+                Enemies.Add(skeleton);
+                Godot.GD.Print($"💀 Knochenhaufen erwacht als Skelett! 💀");
             }
         }
+
+    public void SpawnEnemies()
+    {
+        int count = CalculateEnemySpawnCount();
+        var biome = BiomeSystem.CurrentBiome;
+        
+        for (int i = 0; i < count; i++)
+        {
+            var e = SpawnBiomeEnemy(biome);
+            if (e != null)
+            {
+                Enemies.Add(e);
+                
+                // NEU: Wenn Goblin, spawne direkt einen zweiten
+                if (e.Type == EnemyType.Goblin)
+                {
+                    var pos2 = RandomFreeCell();
+                    var goblin2 = EnemyRegistry.Get(EnemyType.Goblin).Create(pos2.X, pos2.Y, e.EnemyLevel);
+                    goblin2.Hp = (int)(goblin2.Hp * biome.EnemyHealthMultiplier);
+                    goblin2.Atk = (int)(goblin2.Atk * biome.EnemyDamageMultiplier);
+                    Enemies.Add(goblin2);
+                    Godot.GD.Print("Goblin-Paar spawnt!");
+                }
+            }
+        }
+        
+        // Spell Drop
+        if (Rng.NextDouble() < 0.08)
+        {
+            var pos = RandomFreeCell();
+            SpellDrops.Add(new SpellDrop(pos.X, pos.Y, SpellFactory.CreateRandom(Player.Level, Rng)));
+        }
+    }
 
         private Enemy SpawnBiomeEnemy(IBiome biome)
         {
@@ -219,6 +274,7 @@ namespace Dungeon2048.Core.Services
             if (free.Count == 0) return (0, 0);
             return free[Rng.Next(free.Count)];
         }
+
         public bool IsOccupied(int x, int y, bool ignorePlayer = false)
         {
             if (!ignorePlayer && Player.X == x && Player.Y == y) return true;
@@ -283,14 +339,16 @@ namespace Dungeon2048.Core.Services
             Door = new Door(pos.X, pos.Y) { IsActive = true };
         }
 
+        // Langsamer Enemy Level
         public int CalculateEnemyLevel()
         {
-            int baseLvl = System.Math.Max(1, (int)((CurrentLevel - 1) / 2.0));
-            int progressBonus = (int)(Objective.Progress * 1.5 + 0.5);
+            int baseLvl = System.Math.Max(1, (int)((CurrentLevel - 1) / 3.0));
+            int progressBonus = (int)(Objective.Progress * 1.0 + 0.5);
             int typeBonus = Objective.Type == LevelType.Boss ? 1 : 0;
             return baseLvl + progressBonus + typeBonus;
         }
 
+        // Weniger Enemy Spawns
         public int CalculateEnemySpawnCount()
         {
             double doorMod = (Door != null && Door.IsActive) ? 0.3 : 1.0;
@@ -299,9 +357,18 @@ namespace Dungeon2048.Core.Services
             
             int baseCount = Objective.Type switch
             {
-                LevelType.Survival => System.Math.Clamp((int)System.Math.Round((1 + (int)((CurrentLevel - 1) / 4.0)) * doorMod * biomeMod), 0, 2),
-                LevelType.Elimination => System.Math.Clamp((int)System.Math.Round((1 + (int)((CurrentLevel - 1) / 3.0)) * doorMod * biomeMod), 0, 3),
-                LevelType.Boss => System.Math.Clamp((int)System.Math.Round((1 + (int)((CurrentLevel - 1) / 4.0)) * doorMod * biomeMod), 0, 2),
+                LevelType.Survival => System.Math.Clamp(
+                    (int)System.Math.Round((1 + (int)((CurrentLevel - 1) / 6.0)) * doorMod * biomeMod), 
+                    0, 2
+                ),
+                LevelType.Elimination => System.Math.Clamp(
+                    (int)System.Math.Round((1 + (int)((CurrentLevel - 1) / 5.0)) * doorMod * biomeMod), 
+                    0, 3
+                ),
+                LevelType.Boss => System.Math.Clamp(
+                    (int)System.Math.Round((1 + (int)((CurrentLevel - 1) / 7.0)) * doorMod * biomeMod), 
+                    0, 1
+                ),
                 _ => 1
             };
             
@@ -312,6 +379,7 @@ namespace Dungeon2048.Core.Services
         {
             var biome = BiomeSystem.CurrentBiome;
             
+            // Prüfe ob das aktuelle Level ein Boss-Level für dieses Biome ist
             if (biome.HasBoss(CurrentLevel))
             {
                 var bossType = biome.GetBossType();
@@ -320,14 +388,12 @@ namespace Dungeon2048.Core.Services
                 var lvl = archetype.CalcLevel(this) + 2;
                 var boss = archetype.Create(pos.X, pos.Y, lvl, true);
                 Enemies.Add(boss);
-                Godot.GD.Print($"Boss spawned: {boss.DisplayName}!");
+                Godot.GD.Print($"🔥 ACT BOSS SPAWNED: {boss.DisplayName}! 🔥");
             }
             else
             {
-                // Fallback: Standard Boss
-                var pos = RandomFreeCell();
-                var lvl = CalculateEnemyLevel() + 1;
-                Enemies.Add(new Enemy(pos.X, pos.Y, EnemyType.Boss, lvl, true));
+                // Sollte nicht passieren, aber Fallback
+                Godot.GD.PrintErr($"Versuch Boss zu spawnen aber Level {CurrentLevel} ist kein Boss-Level!");
             }
         }
     }

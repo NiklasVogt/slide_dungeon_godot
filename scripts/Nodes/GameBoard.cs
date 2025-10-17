@@ -380,9 +380,16 @@ private Node2D GetOrCreateEntityNode(string name, int z, Color color, int hp, bo
     foreach (var b in _ctx.BonePiles)
     {
         var name = $"BonePile_{b.Id}";
-        var node = GetOrCreateEntityNode(name, 3, new Color("d3d3d3"), BonePile.MaxHits - b.HitCount, displayName: "Knochen");
+        int hitsRemaining = BonePile.MaxHits - b.HitCount;
+        int swipesUntilRevive = BonePile.MaxSwipesAlive - b.SwipesAlive;
+        
+        // NEU: Zeige Swipes bis Revival als Badge
+        string reviveIndicator = swipesUntilRevive > 0 ? $"💀{swipesUntilRevive}" : "💀!";
+        
+        var node = GetOrCreateEntityNode(name, 3, new Color("d3d3d3"), hitsRemaining, 
+            showBadge: true, badgeText: reviveIndicator, displayName: "Knochen");
         SlideNodeTo(node, MapToLocal(new Vector2I(b.X, b.Y)));
-        UpdateEntityNodeVisuals(name, BonePile.MaxHits - b.HitCount, displayName: "Knochen");
+        UpdateEntityNodeVisuals(name, hitsRemaining, reviveIndicator, "Knochen");
     }
 
     // Spells

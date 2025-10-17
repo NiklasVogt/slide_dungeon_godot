@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Godot;
 using Dungeon2048.Core.Entities;
 using Dungeon2048.Core.Services;
+using Dungeon2048.Core.Objectives;
 
 namespace Dungeon2048.Core.World
 {
@@ -41,13 +42,19 @@ namespace Dungeon2048.Core.World
         public void OnEnter(GameContext ctx)
         {
             GD.Print($"Betrete {Name}");
-            // Spawn initial gravestones
             SpawnGravestones(ctx);
         }
         
         public void OnLevelStart(GameContext ctx)
         {
-            // Optional: Flackernde Fackeln spawnen
+            // Boss-Level: Keine zusätzlichen Fackeln, mehr Spannung
+            if (ObjectiveService.IsBossLevel(ctx.CurrentLevel))
+            {
+                GD.Print("⚔️ Bereite dich auf den Boss vor! ⚔️");
+                return;
+            }
+            
+            // Normale Level: Optional Fackeln
             if (ctx.Rng.NextDouble() < 0.3)
             {
                 SpawnTorch(ctx);
@@ -56,11 +63,11 @@ namespace Dungeon2048.Core.World
         
         public void OnLevelComplete(GameContext ctx)
         {
-            // Bonus für schnelles Clearing
-            if (ctx.TotalSwipes < 8)
+            // Bonus nur für sehr schnelles Clearing
+            if (ctx.TotalSwipes < 6)
             {
-                GD.Print("Schnell! Bonus XP!");
-                ctx.Player.GainExperience(10);
+                GD.Print("Blitzschnell! Bonus XP!");
+                ctx.Player.GainExperience(15);
             }
         }
         

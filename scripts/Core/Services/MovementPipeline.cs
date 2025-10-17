@@ -1,3 +1,4 @@
+// scripts/Core/Services/MovementPipeline.cs
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -25,14 +26,41 @@ namespace Dungeon2048.Core.Services
         private static Vector2I CalculateFurthest(GameContext ctx, EntityBase entity, int dx, int dy, HashSet<string> occupied)
         {
             int x = entity.X, y = entity.Y;
+            
             while (true)
             {
                 int nx = x + dx, ny = y + dy;
-                if (nx < 0 || nx >= GameContext.GridSize || ny < 0 || ny >= GameContext.GridSize) break;
-                if (TileRegistry.AnyBlocks(entity, ctx, nx, ny)) break;
-                if (occupied.Contains($"{nx},{ny}")) break;
+                
+                if (nx < 0 || nx >= GameContext.GridSize || ny < 0 || ny >= GameContext.GridSize)
+                {
+                    break;
+                }
+                
+                if (TileRegistry.AnyBlocks(entity, ctx, nx, ny))
+                {
+                    break;
+                }
+                
+                if (occupied.Contains($"{nx},{ny}"))
+                {
+                    break;
+                }
+                
+                // Explizite Tür-Prüfung für Enemies
+                if (entity is Enemy)
+                {
+                    if (ctx.Door != null && ctx.Door.IsActive)
+                    {
+                        if (ctx.Door.X == nx && ctx.Door.Y == ny)
+                        {
+                            break;
+                        }
+                    }
+                }
+                
                 x = nx; y = ny;
             }
+            
             return new Vector2I(x, y);
         }
 
@@ -74,11 +102,14 @@ namespace Dungeon2048.Core.Services
             var d = ctx.Door;
             if (d != null && d.IsActive && d.X == tx && d.Y == ty)
             {
-                var oldKey = $"{moved.X},{moved.Y}";
-                occupied.Remove(oldKey);
-                moved.X = tx; moved.Y = ty;
-                occupied.Add($"{moved.X},{moved.Y}");
-                TileRegistry.Enter(moved, ctx, moved.X, moved.Y);
+                if (moved is Player)
+                {
+                    var oldKey = $"{moved.X},{moved.Y}";
+                    occupied.Remove(oldKey);
+                    moved.X = tx; moved.Y = ty;
+                    occupied.Add($"{moved.X},{moved.Y}");
+                    TileRegistry.Enter(moved, ctx, moved.X, moved.Y);
+                }
                 return;
             }
 
@@ -86,6 +117,12 @@ namespace Dungeon2048.Core.Services
 
             if (!TileRegistry.AnyBlocks(moved, ctx, tx, ty) && !occupied.Contains($"{tx},{ty}"))
             {
+                // Doppelte Tür-Check vor dem Bewegen
+                if (moved is Enemy && ctx.Door != null && ctx.Door.IsActive && ctx.Door.X == tx && ctx.Door.Y == ty)
+                {
+                    return;
+                }
+                
                 var oldKey = $"{moved.X},{moved.Y}";
                 occupied.Remove(oldKey);
                 moved.X = tx; moved.Y = ty;
@@ -99,7 +136,7 @@ namespace Dungeon2048.Core.Services
                 return;
             }
 
-            // Player -> Enemy (mit Mimic-Reveal)
+            // Player -> Enemy
             if (moved is Player player)
             {
                 int eidx = ctx.Enemies.FindIndex(e => e.X == tx && e.Y == ty);
@@ -107,7 +144,6 @@ namespace Dungeon2048.Core.Services
                 {
                     var target = ctx.Enemies[eidx];
                     
-                    // Mimic reveal beim ersten Kontakt
                     if (target.Type == EnemyType.Mimic && target.IsDisguised)
                     {
                         target.IsDisguised = false;
@@ -133,21 +169,32 @@ namespace Dungeon2048.Core.Services
 
                     if (target.Hp <= 0)
                     {
-                        var oldPx = (moved.X, moved.Y);
-                        var ex = target.X; var ey = target.Y;
+                        var ex = target.X; 
+                        var ey = target.Y;
                         var xp = target.XpReward;
+                        bool wasSkeleton = target.Type == EnemyType.Skeleton;
 
                         ctx.RegisterPlayerKill(target);
                         ctx.Enemies.RemoveAt(eidx);
 
-                        occupied.Remove($"{oldPx.Item1},{oldPx.Item2}");
-                        occupied.Remove($"{ex},{ey}");
+                        if (wasSkeleton && ctx.BonePiles.Any(b => b.X == ex && b.Y == ey))
+                        {
+                            // Spieler bleibt stehen, Knochenhaufen blockiert
+                        }
+                        else
+                        {
+                            var oldPx = (moved.X, moved.Y);
+                            occupied.Remove($"{oldPx.Item1},{oldPx.Item2}");
+                            occupied.Remove($"{ex},{ey}");
 
-                        moved.X = ex; moved.Y = ey;
-                        occupied.Add($"{moved.X},{moved.Y}");
+                            moved.X = ex; 
+                            moved.Y = ey;
+                            occupied.Add($"{moved.X},{moved.Y}");
+                            
+                            TileRegistry.Enter(moved, ctx, moved.X, moved.Y);
+                        }
 
                         ctx.Player.GainExperience(xp);
-                        TileRegistry.Enter(moved, ctx, moved.X, moved.Y);
                     }
                     return;
                 }
@@ -184,19 +231,29 @@ namespace Dungeon2048.Core.Services
 
                     if (target.Hp <= 0)
                     {
-                        var oldEx = (enemy.X, enemy.Y);
-                        var targetX = target.X; var targetY = target.Y;
+                        var targetX = target.X; 
+                        var targetY = target.Y;
+                        bool wasSkeleton = target.Type == EnemyType.Skeleton;
 
                         ctx.RegisterEnemyKill(target);
                         ctx.Enemies.RemoveAt(eidx);
 
-                        occupied.Remove($"{oldEx.Item1},{oldEx.Item2}");
-                        occupied.Remove($"{targetX},{targetY}");
+                        if (wasSkeleton && ctx.BonePiles.Any(b => b.X == targetX && b.Y == targetY))
+                        {
+                            // Enemy bleibt stehen, Knochenhaufen blockiert
+                        }
+                        else
+                        {
+                            var oldEx = (enemy.X, enemy.Y);
+                            occupied.Remove($"{oldEx.Item1},{oldEx.Item2}");
+                            occupied.Remove($"{targetX},{targetY}");
 
-                        enemy.X = targetX; enemy.Y = targetY;
-                        occupied.Add($"{enemy.X},{enemy.Y}");
+                            enemy.X = targetX; 
+                            enemy.Y = targetY;
+                            occupied.Add($"{enemy.X},{enemy.Y}");
 
-                        TileRegistry.Enter(enemy, ctx, enemy.X, enemy.Y);
+                            TileRegistry.Enter(enemy, ctx, enemy.X, enemy.Y);
+                        }
                     }
 
                     if (enemy.Hp <= 0)
@@ -225,6 +282,12 @@ namespace Dungeon2048.Core.Services
             var ordered = SortForDirection(entitiesToMove, dx, dy);
 
             var occupied = new HashSet<string>(new[] { $"{ctx.Player.X},{ctx.Player.Y}" }.Concat(ctx.Enemies.Select(e => $"{e.X},{e.Y}")));
+            
+            // Tür als occupied für Enemies markieren
+            if (ctx.Door != null && ctx.Door.IsActive)
+            {
+                occupied.Add($"{ctx.Door.X},{ctx.Door.Y}");
+            }
 
             foreach (var entity in ordered)
             {
@@ -233,9 +296,28 @@ namespace Dungeon2048.Core.Services
                 int startX = entity.X, startY = entity.Y;
 
                 occupied.Remove($"{entity.X},{entity.Y}");
+                
+                // Für Player: Tür temporär aus occupied entfernen
+                bool doorWasOccupied = false;
+                if (entity is Player && ctx.Door != null && ctx.Door.IsActive)
+                {
+                    string doorKey = $"{ctx.Door.X},{ctx.Door.Y}";
+                    if (occupied.Contains(doorKey))
+                    {
+                        occupied.Remove(doorKey);
+                        doorWasOccupied = true;
+                    }
+                }
+                
                 var pos = CalculateFurthest(ctx, entity, dx, dy, occupied);
                 entity.X = pos.X; entity.Y = pos.Y;
                 occupied.Add($"{entity.X},{entity.Y}");
+                
+                // Tür wieder als occupied markieren
+                if (doorWasOccupied && ctx.Door != null && ctx.Door.IsActive)
+                {
+                    occupied.Add($"{ctx.Door.X},{ctx.Door.Y}");
+                }
 
                 ResolveAfterMove(ctx, bus, entity, dx, dy, occupied, startX, startY);
 
