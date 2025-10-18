@@ -9,7 +9,17 @@ namespace Dungeon2048.Core.Tiles
         public bool BlocksMovement(Entities.EntityBase entity, Services.GameContext ctx, int nx, int ny)
         {
             bool hasDrop = ctx.SpellDrops.Any(d => d.X == nx && d.Y == ny);
-            if (!hasDrop) return false;
+            
+            // NEU: Getarnter Mimic blockiert auch wie Spell Drop
+            bool hasDisguisedMimic = ctx.Enemies.Any(e => 
+                e.Type == Entities.EnemyType.Mimic && 
+                e.IsDisguised && 
+                e.X == nx && 
+                e.Y == ny
+            );
+            
+            if (!hasDrop && !hasDisguisedMimic) return false;
+            
             // Spieler darf durchsliden (Pickup via Enter/Sweep), Gegner werden blockiert
             return entity is Entities.Enemy;
         }
@@ -23,6 +33,21 @@ namespace Dungeon2048.Core.Tiles
                 {
                     var drop = ctx.SpellDrops[idx];
                     ctx.RegisterSpellPickup(drop);
+                }
+                
+                // NEU: Spieler betritt Feld mit getarntem Mimic -> Reveal
+                var mimic = ctx.Enemies.FirstOrDefault(e => 
+                    e.Type == Entities.EnemyType.Mimic && 
+                    e.IsDisguised && 
+                    e.X == x && 
+                    e.Y == y
+                );
+                
+                if (mimic != null)
+                {
+                    mimic.IsDisguised = false;
+                    mimic.MimicHitCount = 0;
+                    Godot.GD.Print("💀 Das war ein MIMIC! Er greift an!");
                 }
             }
         }
@@ -39,6 +64,27 @@ namespace Dungeon2048.Core.Tiles
                     if (drop.IsDestroyed)
                     {
                         ctx.SpellDrops.RemoveAt(idx);
+                    }
+                }
+                
+                // NEU: Enemy trifft getarnten Mimic
+                var mimic = ctx.Enemies.FirstOrDefault(e => 
+                    e.Type == Entities.EnemyType.Mimic && 
+                    e.IsDisguised && 
+                    e.X == x && 
+                    e.Y == y
+                );
+                
+                if (mimic != null)
+                {
+                    mimic.MimicHitCount++;
+                    Godot.GD.Print($"Mimic wurde getroffen! ({mimic.MimicHitCount}/{Entities.Enemy.MimicHitsToReveal})");
+                    
+                    if (mimic.MimicHitCount >= Entities.Enemy.MimicHitsToReveal)
+                    {
+                        mimic.IsDisguised = false;
+                        mimic.MimicHitCount = 0;
+                        Godot.GD.Print("💀 Der Mimic wurde enttarnt!");
                     }
                 }
             }

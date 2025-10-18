@@ -137,29 +137,31 @@ namespace Dungeon2048.Core.Services
             }
 
             // Player -> Enemy
-            if (moved is Player player)
+        if (moved is Player player)
+        {
+            int eidx = ctx.Enemies.FindIndex(e => e.X == tx && e.Y == ty);
+            if (eidx != -1)
             {
-                int eidx = ctx.Enemies.FindIndex(e => e.X == tx && e.Y == ty);
-                if (eidx != -1)
+                var target = ctx.Enemies[eidx];
+                
+                // NEU: Mimic reveal beim ersten Kontakt mit Player (egal ob Kollision oder "Hit")
+                if (target.Type == EnemyType.Mimic && target.IsDisguised)
                 {
-                    var target = ctx.Enemies[eidx];
-                    
-                    if (target.Type == EnemyType.Mimic && target.IsDisguised)
-                    {
-                        target.IsDisguised = false;
-                        GD.Print("Das war ein MIMIC!");
-                    }
-                    
-                    bus.AddAttackEvent(new AttackEvent("Player", $"Enemy_{target.Id}", new Vector2I(dx, dy)));
+                    target.IsDisguised = false;
+                    target.MimicHitCount = 0; // Reset counter
+                    GD.Print("💀 Das war ein MIMIC! Er greift an!");
+                }
+                
+                bus.AddAttackEvent(new AttackEvent("Player", $"Enemy_{target.Id}", new Vector2I(dx, dy)));
 
-                    if (target.Type == EnemyType.Masochist)
-                    {
-                        // Kein Kollisionsschaden
-                    }
-                    else
-                    {
-                        target.Hp -= moved.Atk;
-                    }
+                if (target.Type == EnemyType.Masochist)
+                {
+                    // Kein Kollisionsschaden
+                }
+                else
+                {
+                    target.Hp -= moved.Atk;
+                }
 
                     if (target.Type == EnemyType.Thorns)
                     {
@@ -201,72 +203,89 @@ namespace Dungeon2048.Core.Services
             }
 
             // Enemy -> Player / Enemy
-            if (moved is Enemy enemy && !ctx.EnemiesFrozen)
+        if (moved is Enemy enemy && !ctx.EnemiesFrozen)
+        {
+            if (ctx.Player.X == tx && ctx.Player.Y == ty)
             {
-                if (ctx.Player.X == tx && ctx.Player.Y == ty)
+                if (enemy.Type != EnemyType.Thorns)
                 {
-                    if (enemy.Type != EnemyType.Thorns)
-                    {
-                        bus.AddAttackEvent(new AttackEvent($"Enemy_{enemy.Id}", "Player", new Vector2I(dx, dy)));
-                        ctx.Player.Hp -= enemy.Atk;
-                    }
-                    return;
+                    bus.AddAttackEvent(new AttackEvent($"Enemy_{enemy.Id}", "Player", new Vector2I(dx, dy)));
+                    ctx.Player.Hp -= enemy.Atk;
                 }
-
-                int eidx = ctx.Enemies.FindIndex(e => e.X == tx && e.Y == ty && !ReferenceEquals(e, enemy));
-                if (eidx != -1)
-                {
-                    var target = ctx.Enemies[eidx];
-
-                    if (target.Type != EnemyType.Masochist)
-                    {
-                        target.Hp -= enemy.Atk;
-                    }
-
-                    if (target.Type == EnemyType.Thorns)
-                    {
-                        int refl = ThornsRetaliationForEnemy(enemy, target);
-                        enemy.Hp -= refl;
-                    }
-
-                    if (target.Hp <= 0)
-                    {
-                        var targetX = target.X; 
-                        var targetY = target.Y;
-                        bool wasSkeleton = target.Type == EnemyType.Skeleton;
-
-                        ctx.RegisterEnemyKill(target);
-                        ctx.Enemies.RemoveAt(eidx);
-
-                        if (wasSkeleton && ctx.BonePiles.Any(b => b.X == targetX && b.Y == targetY))
-                        {
-                            // Enemy bleibt stehen, Knochenhaufen blockiert
-                        }
-                        else
-                        {
-                            var oldEx = (enemy.X, enemy.Y);
-                            occupied.Remove($"{oldEx.Item1},{oldEx.Item2}");
-                            occupied.Remove($"{targetX},{targetY}");
-
-                            enemy.X = targetX; 
-                            enemy.Y = targetY;
-                            occupied.Add($"{enemy.X},{enemy.Y}");
-
-                            TileRegistry.Enter(enemy, ctx, enemy.X, enemy.Y);
-                        }
-                    }
-
-                    if (enemy.Hp <= 0)
-                    {
-                        var idxSelf = ctx.Enemies.FindIndex(e => ReferenceEquals(e, enemy));
-                        if (idxSelf >= 0) ctx.Enemies.RemoveAt(idxSelf);
-                        occupied.Remove($"{enemy.X},{enemy.Y}");
-                        ctx.RegisterEnemyKill(enemy);
-                    }
-
-                    return;
-                }
+                return;
             }
+
+            int eidx = ctx.Enemies.FindIndex(e => e.X == tx && e.Y == ty && !ReferenceEquals(e, enemy));
+            if (eidx != -1)
+            {
+                var target = ctx.Enemies[eidx];
+
+                // NEU: Getarnter Mimic wird getroffen
+                if (target.Type == EnemyType.Mimic && target.IsDisguised)
+                {
+                    target.MimicHitCount++;
+                    GD.Print($"Mimic wurde getroffen! ({target.MimicHitCount}/{Enemy.MimicHitsToReveal})");
+                    
+                    if (target.MimicHitCount >= Enemy.MimicHitsToReveal)
+                    {
+                        target.IsDisguised = false;
+                        target.MimicHitCount = 0;
+                        GD.Print("💀 Der Mimic wurde enttarnt!");
+                    }
+                    
+                    // Getarnter Mimic nimmt keinen Schaden, nur Hit-Counter
+                    return;
+                }
+
+                if (target.Type != EnemyType.Masochist)
+                {
+                    target.Hp -= enemy.Atk;
+                }
+
+                if (target.Type == EnemyType.Thorns)
+                {
+                    int refl = ThornsRetaliationForEnemy(enemy, target);
+                    enemy.Hp -= refl;
+                }
+
+                if (target.Hp <= 0)
+                {
+                    var targetX = target.X; 
+                    var targetY = target.Y;
+                    bool wasSkeleton = target.Type == EnemyType.Skeleton;
+
+                    ctx.RegisterEnemyKill(target);
+                    ctx.Enemies.RemoveAt(eidx);
+
+                    if (wasSkeleton && ctx.BonePiles.Any(b => b.X == targetX && b.Y == targetY))
+                    {
+                        // Enemy bleibt stehen, Knochenhaufen blockiert
+                    }
+                    else
+                    {
+                        var oldEx = (enemy.X, enemy.Y);
+                        occupied.Remove($"{oldEx.Item1},{oldEx.Item2}");
+                        occupied.Remove($"{targetX},{targetY}");
+
+                        enemy.X = targetX; 
+                        enemy.Y = targetY;
+                        occupied.Add($"{enemy.X},{enemy.Y}");
+
+                        TileRegistry.Enter(enemy, ctx, enemy.X, enemy.Y);
+                    }
+                }
+
+                if (enemy.Hp <= 0)
+                {
+                    var idxSelf = ctx.Enemies.FindIndex(e => ReferenceEquals(e, enemy));
+                    if (idxSelf >= 0) ctx.Enemies.RemoveAt(idxSelf);
+                    occupied.Remove($"{enemy.X},{enemy.Y}");
+                    ctx.RegisterEnemyKill(enemy);
+                }
+
+                return;
+            }
+        }
         }
 
         public static async Task<List<AttackEvent>> Move(GameContext ctx, int dx, int dy)
@@ -280,6 +299,16 @@ namespace Dungeon2048.Core.Services
             if (ctx.EnemiesFrozen) GD.Print("Freeze aktiv: nur Spieler bewegt sich.");
 
             var ordered = SortForDirection(entitiesToMove, dx, dy);
+            
+            // NEU: Getarnte Mimics entfernen aus Bewegungsliste
+            ordered = ordered.Where(e => 
+            {
+                if (e is Enemy enemy && enemy.Type == EnemyType.Mimic && enemy.IsDisguised)
+                {
+                    return false; // Getarnter Mimic bewegt sich nicht
+                }
+                return true;
+            }).ToList();
 
             var occupied = new HashSet<string>(new[] { $"{ctx.Player.X},{ctx.Player.Y}" }.Concat(ctx.Enemies.Select(e => $"{e.X},{e.Y}")));
             

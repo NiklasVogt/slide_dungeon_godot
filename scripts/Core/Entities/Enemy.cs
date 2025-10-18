@@ -61,9 +61,12 @@ namespace Dungeon2048.Core.Entities
         public EnemyType Type;
         public int EnemyLevel;
         public bool IsBoss;
-        
+
         // Spezielle Mechanik-Properties
-        public bool IsDisguised = false;           // Mimic: Getarnt als Spell Drop
+        public bool IsDisguised = false;     
+        
+        public int MimicHitCount = 0;              // NEU: Wie oft wurde getarnter Mimic getroffen
+        public const int MimicHitsToReveal = 3;      // Mimic: Getarnt als Spell Drop
         public int HealedThisRound = 0;            // Necrophage: Tracking für UI-Display
         public int MovesThisRound = 0;             // Rat: Tracking für Doppelbewegung
         public int FrozenTurnsRemaining = 0;       // Für Freeze-Effekte
@@ -289,7 +292,7 @@ namespace Dungeon2048.Core.Entities
                     EnemyType.Skeleton          => "Skelett",
                     EnemyType.Rat               => "Ratte",
                     EnemyType.Necrophage        => "Nekrophage",
-                    EnemyType.Mimic             => IsDisguised ? "???" : "Mimic",
+                    EnemyType.Mimic             => IsDisguised ? "Zauber" : "Mimic",
                     EnemyType.GoblinKing        => "Goblin-König",
                     
                     // Akt 2

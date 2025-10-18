@@ -307,43 +307,50 @@ private Node2D GetOrCreateEntityNode(string name, int z, Color color, int hp, bo
     foreach (var e in _ctx.Enemies)
     {
         var name = $"Enemy_{e.Id}";
+        
+        // NEU: Getarnter Mimic wird als Spell-Drop dargestellt
+        if (e.Type == EnemyType.Mimic && e.IsDisguised)
+        {
+            // Mimic sieht aus wie Spell-Drop
+            var node = GetOrCreateEntityNode(name, 4, Colors.Gold, 1, displayName: "Zauber");
+            SlideNodeTo(node, MapToLocal(new Vector2I(e.X, e.Y)));
+            UpdateEntityNodeVisuals(name, 1, null, "Zauber");
+            continue; // Nächster Enemy
+        }
+        
         var color = e.Type switch
         {
             // Akt 1
-            EnemyType.Goblin       => new Color("3cb44b"),     // grün
-            EnemyType.Skeleton     => new Color("e6d5b8"),     // beige
-            EnemyType.Rat          => new Color("6b5b4d"),     // grau-braun
-            EnemyType.Necrophage   => new Color("663399"),     // dunkelviolett
-            EnemyType.Mimic        => e.IsDisguised ? new Color("ffd700") : new Color("dc143c"), // gold oder rot
-            EnemyType.GoblinKing   => new Color("0a5f0a"),     // dunkelgrün
+            EnemyType.Goblin       => new Color("3cb44b"),
+            EnemyType.Skeleton     => new Color("e6d5b8"),
+            EnemyType.Rat          => new Color("6b5b4d"),
+            EnemyType.Necrophage   => new Color("663399"),
+            EnemyType.Mimic        => new Color("dc143c"), // Revealed Mimic ist rot
+            EnemyType.GoblinKing   => new Color("0a5f0a"),
             
             // Bestehende
-            EnemyType.Orc          => new Color("f58231"),     // orange
-            EnemyType.Dragon       => new Color("911eb4"),     // violett
-            EnemyType.Boss         => new Color("111111"),     // schwarz
-            EnemyType.Masochist    => new Color("4699e1"),     // blau
-            EnemyType.Thorns       => new Color("22aa22"),     // dunkelgrün
+            EnemyType.Orc          => new Color("f58231"),
+            EnemyType.Dragon       => new Color("911eb4"),
+            EnemyType.Boss         => new Color("111111"),
+            EnemyType.Masochist    => new Color("4699e1"),
+            EnemyType.Thorns       => new Color("22aa22"),
             _                      => new Color("ff5f5f")
         };
 
         string badge;
         if (e.IsBoss)
             badge = "👑";
-        else if (e.Type == EnemyType.Mimic && e.IsDisguised)
-            badge = "?";
         else if (e.Type == EnemyType.Necrophage && e.HealedThisRound > 0)
             badge = $"+{e.HealedThisRound}";
         else
             badge = e.EnemyLevel.ToString();
 
-        // NEU: DisplayName für jeden Gegner
         var displayName = e.DisplayName;
         
-        var node = GetOrCreateEntityNode(name, 6, color, e.Hp, showBadge: true, badgeText: badge, displayName: displayName);
-        SlideNodeTo(node, MapToLocal(new Vector2I(e.X, e.Y)));
+        var enemyNode = GetOrCreateEntityNode(name, 6, color, e.Hp, showBadge: true, badgeText: badge, displayName: displayName);
+        SlideNodeTo(enemyNode, MapToLocal(new Vector2I(e.X, e.Y)));
         UpdateEntityNodeVisuals(name, e.Hp, badge, displayName);
         
-        // Reset heal counter für nächste Runde
         if (e.Type == EnemyType.Necrophage)
             e.HealedThisRound = 0;
     }
