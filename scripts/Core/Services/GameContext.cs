@@ -8,6 +8,7 @@ using Dungeon2048.Core.Spells;
 using Dungeon2048.Core.Enemies;
 using Dungeon2048.Core.World;
 using Dungeon2048.Core.Tiles;
+using Dungeon2048.Core.Progression;
 
 namespace Dungeon2048.Core.Services
 {
@@ -40,9 +41,16 @@ namespace Dungeon2048.Core.Services
         // Biome System
         public BiomeSystem BiomeSystem { get; private set; }
 
+        public SoulManager SoulManager { get; private set; }
+        
         public GameContext()
         {
             Rng = new Random();
+            
+            // NEU: Soul Manager initialisieren
+            SoulManager = new SoulManager();
+            SoulManager.ResetRunSouls();
+            
             Player = new Player(0, 0);
             Player.MaxHp = Player.CalculatedMaxHp;
             Player.Hp = Player.MaxHp;
@@ -189,16 +197,20 @@ namespace Dungeon2048.Core.Services
             Godot.GD.Print("Goblin-König ruft Verstärkung!");
         }
 
-        public void RegisterPlayerKill(Enemy e)
+    public void RegisterPlayerKill(Enemy e)
         {
             TotalEnemiesKilled += 1;
             Objective.OnKillEnemy(e);
+            
+            // NEU: Seelen für Kill
+            int souls = SoulCurrency.GetSoulReward(e.Type, e.EnemyLevel, e.IsBoss);
+            SoulManager.AddSouls(souls);
             
             // Skelett: 30% Chance auf Bone Pile
             if (e.Type == EnemyType.Skeleton && Rng.NextDouble() < 0.3)
             {
                 BonePiles.Add(new BonePile(e.X, e.Y));
-                Godot.GD.Print("Skelett hinterlässt Knochen!");
+                Godot.GD.Print($"💀 Skelett hinterlässt Knochenhaufen! (Revival in {BonePile.MaxSwipesAlive} Zügen)");
             }
             
             // Necrophage Healing
@@ -240,29 +252,37 @@ namespace Dungeon2048.Core.Services
         }
 
         public void InteractWithDoor()
-        {
-            if (Door == null || !Door.IsActive) return;
-            
-            BiomeSystem.OnLevelComplete();
-            
-            CurrentLevel += 1;
-            TotalSwipes = 0;
-            GoblinKingSpawnCounter = 0;
-            
-            Enemies.Clear();
-            Stones.Clear();
-            SpellDrops.Clear();
-            Gravestones.Clear();
-            Torches.Clear();
-            BonePiles.Clear();
-            Door = null;
+            {
+                if (Door == null || !Door.IsActive) return;
+                
+                BiomeSystem.OnLevelComplete();
+                
+                // NEU: Seelen-Bonus für Level-Completion
+                int levelBonus = SoulCurrency.GetLevelCompletionBonus(CurrentLevel);
+                int objectiveBonus = SoulCurrency.GetObjectiveCompletionBonus(Objective.Type);
+                int totalBonus = levelBonus + objectiveBonus;
+                
+                SoulManager.AddSouls(totalBonus);
+                Godot.GD.Print($"✨ Level {CurrentLevel} abgeschlossen! Bonus: {totalBonus} Seelen");
+                
+                CurrentLevel += 1;
+                TotalSwipes = 0;
+                GoblinKingSpawnCounter = 0;
+                
+                Enemies.Clear();
+                Stones.Clear();
+                SpellDrops.Clear();
+                Gravestones.Clear();
+                Torches.Clear();
+                BonePiles.Clear();
+                Door = null;
 
-            Player.Hp = Player.MaxHp;
-            
-            BiomeSystem.UpdateBiome(CurrentLevel);
-            Objective = ObjectiveService.Generate(Rng, CurrentLevel);
-            SpawnInitialStones();
-        }
+                Player.Hp = Player.MaxHp;
+                
+                BiomeSystem.UpdateBiome(CurrentLevel);
+                Objective = ObjectiveService.Generate(Rng, CurrentLevel);
+                SpawnInitialStones();
+            }
 
         public (int X, int Y) RandomFreeCell(bool ignorePlayer = false)
         {

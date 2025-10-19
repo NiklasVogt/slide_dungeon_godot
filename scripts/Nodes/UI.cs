@@ -11,6 +11,7 @@ namespace Dungeon2048.Nodes
     {
         private Label _title;
         private Label _biomeLabel;
+        private Label _soulLabel;
         private ProgressBar _objBar;
         private Label _objText;
         private Label _stats;
@@ -36,7 +37,7 @@ namespace Dungeon2048.Nodes
             var panel = new Panel
             {
                 Name = "Panel",
-                CustomMinimumSize = new Vector2(_desiredWidth, 280)
+                CustomMinimumSize = new Vector2(_desiredWidth, 300)
             };
             AddChild(panel);
 
@@ -54,6 +55,10 @@ namespace Dungeon2048.Nodes
             
             _biomeLabel = new Label { Text = "Biome: ..." };
             _biomeLabel.AddThemeFontSizeOverride("font_size", 12);
+
+            _soulLabel = new Label { Text = "💎 Seelen: 0 (Run: +0)" };
+            _soulLabel.AddThemeFontSizeOverride("font_size", 14);
+            _soulLabel.Modulate = new Color("9c27b0");
             
             _objBar = new ProgressBar { MinValue = 0, MaxValue = 1, Value = 0, SizeFlagsHorizontal = SizeFlags.ExpandFill };
             _objText = new Label { Text = "…" };
@@ -76,6 +81,7 @@ namespace Dungeon2048.Nodes
 
             vb.AddChild(_title);
             vb.AddChild(_biomeLabel);
+            vb.AddChild(_soulLabel);
             vb.AddChild(_objBar);
             vb.AddChild(_objText);
             vb.AddChild(_stats);
@@ -158,7 +164,7 @@ namespace Dungeon2048.Nodes
                 _biomeLabel.Text = biomeText;
                 _biomeLabel.Modulate = biome.AmbientColor;
             }
-            
+            _soulLabel.Text = $"💎 Seelen: {gs.SoulManager.CurrentSouls} (Run: +{gs.SoulManager.SoulsThisRun})";
             _objBar.Value = gs.Objective.Progress;
             _objText.Text = gs.Objective.ProgressText;
             _stats.Text = $"HP {gs.Player.Hp}/{gs.Player.MaxHp} | ATK {gs.Player.Atk} | LVL {gs.Player.Level}\nSwipes {gs.TotalSwipes} | Kills {gs.TotalEnemiesKilled}";

@@ -10,6 +10,7 @@ using Dungeon2048.Core.Tiles;
 using Dungeon2048.Core.Enemies;
 using Dungeon2048.Core.Objectives;
 
+
 namespace Dungeon2048.Nodes
 {
     public partial class GameBoard : Node2D
@@ -172,7 +173,13 @@ public override void _Ready()
                 GD.Print($"Reached Level: {_ctx.CurrentLevel}");
                 GD.Print($"Total Kills: {_ctx.TotalEnemiesKilled}");
                 GD.Print($"Total Swipes: {_ctx.TotalSwipes}");
-                // Hier könnte Game Over Screen gezeigt werden
+                GD.Print($"💎 Seelen gesammelt diesen Run: {_ctx.SoulManager.SoulsThisRun}");
+                GD.Print($"💎 Gesamt Seelen: {_ctx.SoulManager.CurrentSouls}");
+                
+                // Seelen bleiben erhalten (bereits gespeichert)
+                _ctx.SoulManager.Save();
+                
+                // TODO: Game Over Screen zeigen
             }
             
             _animating = false;
