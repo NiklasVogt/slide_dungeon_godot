@@ -61,10 +61,24 @@ namespace Dungeon2048.Core.Spells
         public string Name => "Heilung";
         public string Description => "Heilt 50% HP";
         public bool IsPermanent => false;
+        
         public void Cast(Entities.Player player, GameContext ctx)
         {
             int heal = (int)Math.Round(player.MaxHp * 0.5);
-            player.Hp = Math.Min(player.MaxHp, player.Hp + heal);
+            
+            // NEU: Hex Curse Mechanik
+            if (ctx.IsHexCursed)
+            {
+                // Invertiert: Heilung wird zu Schaden
+                player.Hp -= heal;
+                Godot.GD.Print($"🔮 HEX-FLUCH! Heilung wird zu {heal} Schaden!");
+            }
+            else
+            {
+                // Normal: Heilen
+                player.Hp = Math.Min(player.MaxHp, player.Hp + heal);
+                Godot.GD.Print($"✨ Geheilt: +{heal} HP");
+            }
         }
     }
 

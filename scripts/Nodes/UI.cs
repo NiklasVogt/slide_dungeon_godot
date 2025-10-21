@@ -4,6 +4,7 @@ using Dungeon2048.Core.Services;
 using Dungeon2048.Core.Spells;
 using Dungeon2048.Core.Objectives;
 using System.Linq;
+using Dungeon2048.Core.Entities;
 
 namespace Dungeon2048.Nodes
 {
@@ -158,16 +159,40 @@ namespace Dungeon2048.Nodes
                 // Boss-Status anzeigen
                 if (gs.Enemies.Any(e => e.IsBoss))
                 {
-                    biomeText += " | ⚔️ BOSS AKTIV!";
+                    var boss = gs.Enemies.First(e => e.IsBoss);
+                    biomeText += $" | ⚔️ {boss.DisplayName}!";
+                    
+                    // Lich Phase 2
+                    if (boss.Type == EnemyType.LichMage && boss.IsPhase2)
+                    {
+                        biomeText += " (Phase 2)";
+                    }
                 }
                 
                 _biomeLabel.Text = biomeText;
                 _biomeLabel.Modulate = biome.AmbientColor;
             }
+            
             _soulLabel.Text = $"💎 Seelen: {gs.SoulManager.CurrentSouls} (Run: +{gs.SoulManager.SoulsThisRun})";
             _objBar.Value = gs.Objective.Progress;
             _objText.Text = gs.Objective.ProgressText;
-            _stats.Text = $"HP {gs.Player.Hp}/{gs.Player.MaxHp} | ATK {gs.Player.Atk} | LVL {gs.Player.Level}\nSwipes {gs.TotalSwipes} | Kills {gs.TotalEnemiesKilled}";
+            
+            // NEU: Hex Curse Warnung
+            string hexWarning = "";
+            if (gs.IsHexCursed)
+            {
+                hexWarning = $" | 🔮 VERFLUCHT ({gs.HexCurseTurnsRemaining})";
+            }
+            
+            // NEU: ATK-Warnung bei Soul Leech Debuff
+            string atkWarning = "";
+            if (gs.Player.Atk < gs.Player.CalculatedAtk)
+            {
+                int deficit = gs.Player.CalculatedAtk - gs.Player.Atk;
+                atkWarning = $" | 💀 ATK -{deficit}";
+            }
+            
+            _stats.Text = $"HP {gs.Player.Hp}/{gs.Player.MaxHp} | ATK {gs.Player.Atk} | LVL {gs.Player.Level}{hexWarning}{atkWarning}\nSwipes {gs.TotalSwipes} | Kills {gs.TotalEnemiesKilled}";
 
             SetSpellSlot(_spell0, gs, 0);
             SetSpellSlot(_spell1, gs, 1);

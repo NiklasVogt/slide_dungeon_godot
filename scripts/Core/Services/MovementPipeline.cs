@@ -122,7 +122,7 @@ namespace Dungeon2048.Core.Services
                 {
                     return;
                 }
-                
+
                 var oldKey = $"{moved.X},{moved.Y}";
                 occupied.Remove(oldKey);
                 moved.X = tx; moved.Y = ty;
@@ -137,41 +137,57 @@ namespace Dungeon2048.Core.Services
             }
 
             // Player -> Enemy
-        if (moved is Player player)
-        {
-            int eidx = ctx.Enemies.FindIndex(e => e.X == tx && e.Y == ty);
-            if (eidx != -1)
+            if (moved is Player player)
             {
-                var target = ctx.Enemies[eidx];
-                
-                // NEU: Mimic reveal beim ersten Kontakt mit Player (egal ob Kollision oder "Hit")
-                if (target.Type == EnemyType.Mimic && target.IsDisguised)
+                int eidx = ctx.Enemies.FindIndex(e => e.X == tx && e.Y == ty);
+                if (eidx != -1)
                 {
-                    target.IsDisguised = false;
-                    target.MimicHitCount = 0; // Reset counter
-                    GD.Print("💀 Das war ein MIMIC! Er greift an!");
-                }
-                
-                bus.AddAttackEvent(new AttackEvent("Player", $"Enemy_{target.Id}", new Vector2I(dx, dy)));
+                    var target = ctx.Enemies[eidx];
 
-                if (target.Type == EnemyType.Masochist)
-                {
-                    // Kein Kollisionsschaden
-                }
-                else
-                {
-                    target.Hp -= moved.Atk;
-                }
+                    // NEU: Mimic reveal beim ersten Kontakt mit Player (egal ob Kollision oder "Hit")
+                    if (target.Type == EnemyType.Mimic && target.IsDisguised)
+                    {
+                        target.IsDisguised = false;
+                        target.MimicHitCount = 0; // Reset counter
+                        GD.Print("💀 Das war ein MIMIC! Er greift an!");
+                    }
+
+                    bus.AddAttackEvent(new AttackEvent("Player", $"Enemy_{target.Id}", new Vector2I(dx, dy)));
+
+                    if (target.Type == EnemyType.Masochist)
+                    {
+                        // Kein Kollisionsschaden
+                    }
+                    else
+                    {
+                        int damage = moved.Atk;
+                        if (target.Type == EnemyType.Gargoyle)
+                        {
+                            damage = target.ApplyGargoyleDamageReduction(damage);
+                            GD.Print($"🗿 Gargoyle-Steinform reduziert Schaden auf {damage}!");
+                        }
+                        target.Hp -= damage;
+                    }
 
                     if (target.Type == EnemyType.Thorns)
                     {
                         int refl = ThornsRetaliationForPlayer(player, target);
                         ctx.Player.Hp -= refl;
                     }
+                    if (target.Type == EnemyType.SoulLeech)
+                    {
+                        ctx.Player.Atk = System.Math.Max(1, ctx.Player.Atk - 1);
+                        GD.Print($"💀 Soul Leech schwächt deine Kraft! ATK: {ctx.Player.Atk}");
+                    }
+                    if (target.Type == EnemyType.HexWitch && target.Hp > 0)
+                    {
+                        ctx.HexCurseTurnsRemaining = 5;
+                        GD.Print("🔮 Die Hex-Hexe verflucht dich beim Kontakt!");
+                    }
 
                     if (target.Hp <= 0)
                     {
-                        var ex = target.X; 
+                        var ex = target.X;
                         var ey = target.Y;
                         var xp = target.XpReward;
                         bool wasSkeleton = target.Type == EnemyType.Skeleton;
@@ -189,10 +205,10 @@ namespace Dungeon2048.Core.Services
                             occupied.Remove($"{oldPx.Item1},{oldPx.Item2}");
                             occupied.Remove($"{ex},{ey}");
 
-                            moved.X = ex; 
+                            moved.X = ex;
                             moved.Y = ey;
                             occupied.Add($"{moved.X},{moved.Y}");
-                            
+
                             TileRegistry.Enter(moved, ctx, moved.X, moved.Y);
                         }
 
@@ -203,90 +219,143 @@ namespace Dungeon2048.Core.Services
             }
 
             // Enemy -> Player / Enemy
-        if (moved is Enemy enemy && !ctx.EnemiesFrozen)
-        {
-            if (ctx.Player.X == tx && ctx.Player.Y == ty)
+            if (moved is Enemy enemy && !ctx.EnemiesFrozen)
             {
-                if (enemy.Type != EnemyType.Thorns)
+                if (ctx.Player.X == tx && ctx.Player.Y == ty)
                 {
-                    bus.AddAttackEvent(new AttackEvent($"Enemy_{enemy.Id}", "Player", new Vector2I(dx, dy)));
-                    ctx.Player.Hp -= enemy.Atk;
-                }
-                return;
-            }
-
-            int eidx = ctx.Enemies.FindIndex(e => e.X == tx && e.Y == ty && !ReferenceEquals(e, enemy));
-            if (eidx != -1)
-            {
-                var target = ctx.Enemies[eidx];
-
-                // NEU: Getarnter Mimic wird getroffen
-                if (target.Type == EnemyType.Mimic && target.IsDisguised)
-                {
-                    target.MimicHitCount++;
-                    GD.Print($"Mimic wurde getroffen! ({target.MimicHitCount}/{Enemy.MimicHitsToReveal})");
-                    
-                    if (target.MimicHitCount >= Enemy.MimicHitsToReveal)
+                    if (enemy.Type != EnemyType.Thorns)
                     {
-                        target.IsDisguised = false;
-                        target.MimicHitCount = 0;
-                        GD.Print("💀 Der Mimic wurde enttarnt!");
+                        bus.AddAttackEvent(new AttackEvent($"Enemy_{enemy.Id}", "Player", new Vector2I(dx, dy)));
+                        ctx.Player.Hp -= enemy.Atk;
                     }
-                    
-                    // Getarnter Mimic nimmt keinen Schaden, nur Hit-Counter
                     return;
                 }
 
-                if (target.Type != EnemyType.Masochist)
+                int eidx = ctx.Enemies.FindIndex(e => e.X == tx && e.Y == ty && !ReferenceEquals(e, enemy));
+                if (eidx != -1)
                 {
-                    target.Hp -= enemy.Atk;
-                }
+                    var target = ctx.Enemies[eidx];
 
-                if (target.Type == EnemyType.Thorns)
-                {
-                    int refl = ThornsRetaliationForEnemy(enemy, target);
-                    enemy.Hp -= refl;
-                }
-
-                if (target.Hp <= 0)
-                {
-                    var targetX = target.X; 
-                    var targetY = target.Y;
-                    bool wasSkeleton = target.Type == EnemyType.Skeleton;
-
-                    ctx.RegisterEnemyKill(target);
-                    ctx.Enemies.RemoveAt(eidx);
-
-                    if (wasSkeleton && ctx.BonePiles.Any(b => b.X == targetX && b.Y == targetY))
+                    // NEU: Getarnter Mimic wird getroffen
+                    if (target.Type == EnemyType.Mimic && target.IsDisguised)
                     {
-                        // Enemy bleibt stehen, Knochenhaufen blockiert
+                        target.MimicHitCount++;
+                        GD.Print($"Mimic wurde getroffen! ({target.MimicHitCount}/{Enemy.MimicHitsToReveal})");
+
+                        if (target.MimicHitCount >= Enemy.MimicHitsToReveal)
+                        {
+                            target.IsDisguised = false;
+                            target.MimicHitCount = 0;
+                            GD.Print("💀 Der Mimic wurde enttarnt!");
+                        }
+
+                        // Getarnter Mimic nimmt keinen Schaden, nur Hit-Counter
+                        return;
                     }
-                    else
+
+                    if (target.Type != EnemyType.Masochist)
                     {
-                        var oldEx = (enemy.X, enemy.Y);
-                        occupied.Remove($"{oldEx.Item1},{oldEx.Item2}");
-                        occupied.Remove($"{targetX},{targetY}");
-
-                        enemy.X = targetX; 
-                        enemy.Y = targetY;
-                        occupied.Add($"{enemy.X},{enemy.Y}");
-
-                        TileRegistry.Enter(enemy, ctx, enemy.X, enemy.Y);
+                        target.Hp -= enemy.Atk;
                     }
-                }
 
-                if (enemy.Hp <= 0)
-                {
-                    var idxSelf = ctx.Enemies.FindIndex(e => ReferenceEquals(e, enemy));
-                    if (idxSelf >= 0) ctx.Enemies.RemoveAt(idxSelf);
-                    occupied.Remove($"{enemy.X},{enemy.Y}");
-                    ctx.RegisterEnemyKill(enemy);
-                }
+                    if (target.Type == EnemyType.Thorns)
+                    {
+                        int refl = ThornsRetaliationForEnemy(enemy, target);
+                        enemy.Hp -= refl;
+                    }
 
-                return;
+                    if (target.Hp <= 0)
+                    {
+                        var targetX = target.X;
+                        var targetY = target.Y;
+                        bool wasSkeleton = target.Type == EnemyType.Skeleton;
+
+                        ctx.RegisterEnemyKill(target);
+                        ctx.Enemies.RemoveAt(eidx);
+
+                        if (wasSkeleton && ctx.BonePiles.Any(b => b.X == targetX && b.Y == targetY))
+                        {
+                            // Enemy bleibt stehen, Knochenhaufen blockiert
+                        }
+                        else
+                        {
+                            var oldEx = (enemy.X, enemy.Y);
+                            occupied.Remove($"{oldEx.Item1},{oldEx.Item2}");
+                            occupied.Remove($"{targetX},{targetY}");
+
+                            enemy.X = targetX;
+                            enemy.Y = targetY;
+                            occupied.Add($"{enemy.X},{enemy.Y}");
+
+                            TileRegistry.Enter(enemy, ctx, enemy.X, enemy.Y);
+                        }
+                    }
+
+                    if (enemy.Hp <= 0)
+                    {
+                        var idxSelf = ctx.Enemies.FindIndex(e => ReferenceEquals(e, enemy));
+                        if (idxSelf >= 0) ctx.Enemies.RemoveAt(idxSelf);
+                        occupied.Remove($"{enemy.X},{enemy.Y}");
+                        ctx.RegisterEnemyKill(enemy);
+                    }
+
+                    return;
+                }
             }
         }
+        private static void HandleKultistAttacks(GameContext ctx, EventBus bus)
+{
+    foreach (var kultist in ctx.Enemies.Where(e => e.Type == EnemyType.Kultist))
+    {
+        // Kultist schießt in alle 4 Richtungen (Kreuz-Pattern)
+        var directions = new[] {
+            new Vector2I(1, 0),   // Rechts
+            new Vector2I(-1, 0),  // Links
+            new Vector2I(0, 1),   // Unten
+            new Vector2I(0, -1)   // Oben
+        };
+        
+        foreach (var dir in directions)
+        {
+            int range = 3; // Maximale Reichweite
+            
+            for (int step = 1; step <= range; step++)
+            {
+                int targetX = kultist.X + (dir.X * step);
+                int targetY = kultist.Y + (dir.Y * step);
+                
+                // Out of bounds check
+                if (targetX < 0 || targetX >= GameContext.GridSize || 
+                    targetY < 0 || targetY >= GameContext.GridSize)
+                    break;
+                
+                // Blocked by tiles
+                if (TileRegistry.AnyBlocks(kultist, ctx, targetX, targetY))
+                    break;
+                
+                // Hit Player
+                if (ctx.Player.X == targetX && ctx.Player.Y == targetY)
+                {
+                    bus.AddAttackEvent(new AttackEvent($"Enemy_{kultist.Id}", "Player", dir));
+                    ctx.Player.Hp -= kultist.Atk;
+                    GD.Print($"⚡ Kultist trifft Spieler mit Magie! -{kultist.Atk} HP");
+                    break; // Projektil stoppt nach Treffer
+                }
+                
+                // Hit Enemy (nicht selbst)
+                var targetEnemy = ctx.Enemies.FirstOrDefault(e => 
+                    e.X == targetX && e.Y == targetY && e.Id != kultist.Id
+                );
+                
+                if (targetEnemy != null)
+                {
+                    // Kultist trifft andere Gegner nicht (friendly fire deaktiviert)
+                    break; // Projektil stoppt
+                }
+            }
         }
+    }
+}
 
         public static async Task<List<AttackEvent>> Move(GameContext ctx, int dx, int dy)
         {
@@ -375,7 +444,7 @@ namespace Dungeon2048.Core.Services
                 ctx.EnemiesFrozen = false;
                 GD.Print("Freeze Ende: Gegner bewegen sich wieder.");
             }
-
+            HandleKultistAttacks(ctx, bus);
             return bus.Attacks;
         }
     }

@@ -21,6 +21,9 @@ namespace Dungeon2048.Core.World
         {
             var catacombs = new CatacombsBiome();
             _biomes[BiomeType.Catacombs] = catacombs;
+
+            var forgottenHalls = new ForgottenHallsBiome();
+            _biomes[BiomeType.ForgottenHalls] = forgottenHalls;
             
             // Weitere Biome später
             // _biomes[BiomeType.ForgottenHalls] = new ForgottenHallsBiome();

@@ -73,14 +73,22 @@ namespace Dungeon2048.Core.Entities
         public bool HasMoved = false;              // Gargoyle: Statue-Mechanik
         public int ShieldStacks = 0;               // Für defensive Buffs
         public int AttachedToPlayerId = -1;        // Parasite: Attached state
-        public string ClonedFromId = null;         // Doppelganger: Original tracking
+        public string ClonedFromId = null;   
+        public int LichTeleportCounter = 0;        // Lich-Magier Teleport Tracking
+        public int HexCurseDuration = 0;           // Hex Witch: Verbleibende Züge des Fluchs
+        public bool IsPhase2 = false;         // Doppelganger: Original tracking
 
+        public int MaxHp { get; private set; }
         public Enemy(int x, int y, EnemyType type, int enemyLevel, bool isBoss = false)
             : base(x, y, CalcHp(type, enemyLevel, isBoss), CalcAtk(type, enemyLevel, isBoss))
         {
             Type = type;
             EnemyLevel = enemyLevel;
             IsBoss = isBoss;
+            
+            // NEU: MaxHp setzen
+            MaxHp = CalcHp(type, enemyLevel, isBoss);
+            Hp = MaxHp;
             
             // Type-spezifische Initialisierung
             if (type == EnemyType.Mimic)
@@ -344,15 +352,16 @@ namespace Dungeon2048.Core.Entities
         }
         
         // Hilfsmethoden für spezielle Mechaniken
-        public bool CanMove()
-        {
-            if (FrozenTurnsRemaining > 0) return false;
-            if (Type == EnemyType.Gargoyle && !HasMoved) return false;
-            if (Type == EnemyType.Kultist) return false; // Kultist bewegt sich nie
-            if (Type == EnemyType.GlacialSentinel) return false; // Sentinels sind statisch
-            if (Type == EnemyType.ForgeMaster) return false; // Schmiedet nur
-            return true;
-        }
+public bool CanMove()
+{
+    if (FrozenTurnsRemaining > 0) return false;
+    if (Type == EnemyType.Gargoyle && !HasMoved) return false;
+    if (Type == EnemyType.Kultist) return false; // Kultist bewegt sich nie
+    if (Type == EnemyType.GlacialSentinel) return false;
+    if (Type == EnemyType.ForgeMaster) return false;
+    if (Type == EnemyType.HexWitch) return false; // NEU: Hex Witch bewegt sich langsam/selten
+    return true;
+}
         
         public bool ShouldMoveDouble()
         {
@@ -426,15 +435,41 @@ namespace Dungeon2048.Core.Entities
                 _ => ""
             };
         }
-        
+
         public void ResetTurnCounters()
         {
             MovesThisRound = 0;
             HealedThisRound = 0;
             HasMoved = false;
-            
+
             if (FrozenTurnsRemaining > 0)
                 FrozenTurnsRemaining--;
         }
+        
+        public void SyncMirrorKnightStats(Entities.Player player)
+{
+    if (Type != EnemyType.MirrorKnight) return;
+    
+    Hp = player.Hp;
+    Atk = player.Atk;
+}
+
+// Gargoyle Schaden-Reduktion:
+public int ApplyGargoyleDamageReduction(int incomingDamage)
+{
+    if (Type != EnemyType.Gargoyle) return incomingDamage;
+    
+    // 50% Schadensreduktion
+    return (int)System.Math.Max(1, incomingDamage * 0.5);
+}
+
+// Lich Teleport Check:
+public bool ShouldLichTeleport()
+{
+    if (Type != EnemyType.LichMage) return false;
+    
+    LichTeleportCounter++;
+    return LichTeleportCounter >= 2; // Alle 2 Züge
+}
     }
 }
