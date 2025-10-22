@@ -80,12 +80,13 @@ namespace Dungeon2048.Core.Services
             TotalSwipes += 1;
             Objective.OnSwipe();
 
-            // Boss-Mechanik: Goblin King spawnt Adds
-            if (Enemies.Any(e => e.IsBoss))
+            // Boss-Mechanik: NUR Goblin King spawnt Adds
+            var goblinKing = Enemies.FirstOrDefault(e => e.Type == EnemyType.GoblinKing && e.IsBoss);
+            if (goblinKing != null)
             {
                 GoblinKingSpawnCounter++;
 
-                // Adds spawnen
+                // Adds spawnen nur für Goblin King
                 if (GoblinKingSpawnCounter >= 3)
                 {
                     SpawnGoblinKingAdds();
@@ -109,11 +110,13 @@ namespace Dungeon2048.Core.Services
                 }
             }
 
-            // NEU: BonePiles altern und reviven
             RegenerateMagicBarriers();
             HandleLichTeleport();
             UpdateMirrorKnights();
             AgeBonePiles();
+
+            // NEU: Teleporter am Ende des Zuges verarbeiten
+            ProcessTeleporters();
 
             CheckAndSpawnDoor();
 
@@ -122,6 +125,8 @@ namespace Dungeon2048.Core.Services
                 gargoyle.HasMoved = !gargoyle.HasMoved;
             }
         }
+
+
 
         // NEU: BonePile Aging und Revival
         private void AgeBonePiles()
@@ -157,6 +162,60 @@ namespace Dungeon2048.Core.Services
             }
         }
 
+        public void ProcessTeleporters()
+        {
+            if (Teleporters.Count == 0) return;
+
+            var teleportQueue = new System.Collections.Generic.List<(Entities.EntityBase entity, int targetX, int targetY)>();
+
+            // 1. Sammle alle Entities auf Teleportern
+
+            // Player prüfen
+            var playerTeleporter = Teleporters.FirstOrDefault(t =>
+                t.IsActive && t.X == Player.X && t.Y == Player.Y && t.LinkedTeleporterId != null
+            );
+
+            if (playerTeleporter != null)
+            {
+                var target = Teleporters.FirstOrDefault(t => t.Id == playerTeleporter.LinkedTeleporterId);
+                if (target != null)
+                {
+                    teleportQueue.Add((Player, target.X, target.Y));
+                }
+            }
+
+            // Enemies prüfen
+            foreach (var enemy in Enemies.ToList())
+            {
+                var enemyTeleporter = Teleporters.FirstOrDefault(t =>
+                    t.IsActive && t.X == enemy.X && t.Y == enemy.Y && t.LinkedTeleporterId != null
+                );
+
+                if (enemyTeleporter != null)
+                {
+                    var target = Teleporters.FirstOrDefault(t => t.Id == enemyTeleporter.LinkedTeleporterId);
+                    if (target != null)
+                    {
+                        teleportQueue.Add((enemy, target.X, target.Y));
+                    }
+                }
+            }
+
+            // 2. Führe alle Teleportationen durch
+            foreach (var (entity, targetX, targetY) in teleportQueue)
+            {
+                var oldPos = (entity.X, entity.Y);
+                entity.X = targetX;
+                entity.Y = targetY;
+
+                string entityName = entity is Entities.Player ? "Spieler" :
+                                   entity is Entities.Enemy e ? e.DisplayName : "Entity";
+
+                Godot.GD.Print($"🌀 {entityName} teleportiert von ({oldPos.X},{oldPos.Y}) → ({targetX},{targetY})!");
+            }
+        }
+
+
         public void SpawnEnemies()
         {
             int count = CalculateEnemySpawnCount();
@@ -169,7 +228,7 @@ namespace Dungeon2048.Core.Services
                 {
                     Enemies.Add(e);
 
-                    // NEU: Wenn Goblin, spawne direkt einen zweiten
+                    // FEATURE: Goblin spawnt immer in Paaren (das bleibt!)
                     if (e.Type == EnemyType.Goblin)
                     {
                         var pos2 = RandomFreeCell();
@@ -182,13 +241,14 @@ namespace Dungeon2048.Core.Services
                 }
             }
 
-            // Spell Drop
+            // Spell Drop (unverändert)
             if (Rng.NextDouble() < 0.08)
             {
                 var pos = RandomFreeCell();
                 SpellDrops.Add(new SpellDrop(pos.X, pos.Y, SpellFactory.CreateRandom(Player.Level, Rng)));
             }
         }
+
 
         private Enemy SpawnBiomeEnemy(IBiome biome)
         {
@@ -484,25 +544,20 @@ namespace Dungeon2048.Core.Services
             var biome = BiomeSystem.CurrentBiome;
             double biomeMod = biome?.SpawnRateMultiplier ?? 1.0;
 
+            // ÄNDERUNG: Immer nur 1 Gegner spawnen
+            // doorMod kann das auf 0 reduzieren wenn Tür aktiv ist
             int baseCount = Objective.Type switch
             {
-                LevelType.Survival => System.Math.Clamp(
-                    (int)System.Math.Round((1 + (int)((CurrentLevel - 1) / 6.0)) * doorMod * biomeMod),
-                    0, 2
-                ),
-                LevelType.Elimination => System.Math.Clamp(
-                    (int)System.Math.Round((1 + (int)((CurrentLevel - 1) / 5.0)) * doorMod * biomeMod),
-                    0, 3
-                ),
-                LevelType.Boss => System.Math.Clamp(
-                    (int)System.Math.Round((1 + (int)((CurrentLevel - 1) / 7.0)) * doorMod * biomeMod),
-                    0, 1
-                ),
+                LevelType.Survival => (int)System.Math.Round(1 * doorMod * biomeMod),
+                LevelType.Elimination => (int)System.Math.Round(1 * doorMod * biomeMod),
+                LevelType.Boss => (int)System.Math.Round(1 * doorMod * biomeMod),
                 _ => 1
             };
 
-            return baseCount;
+            // Mindestens 0, maximal 1 (außer Door macht es zu 0)
+            return System.Math.Clamp(baseCount, 0, 1);
         }
+
 
         private void SpawnBoss()
         {

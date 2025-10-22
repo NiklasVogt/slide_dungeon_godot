@@ -39,35 +39,32 @@ namespace Dungeon2048.Core.World
             EnemyType.HexWitch
         };
         
-        public string[] SpecialTileTypes => new[] { "Teleporter", "RuneTrap", "MagicBarrier" };
+        // ÄNDERUNG: RuneTrap entfernt
+        public string[] SpecialTileTypes => new[] { "Teleporter", "MagicBarrier" };
         
         public void OnEnter(GameContext ctx)
         {
             GD.Print($"✨ Betrete {Name} ✨");
             GD.Print("Vorsicht vor magischen Fallen und fernkämpfenden Kultisten!");
-            SpawnMagicBarriers(ctx);
         }
         
         public void OnLevelStart(GameContext ctx)
         {
-            // Boss-Level: Keine Teleporter
+            // Boss-Level: Keine speziellen Tiles
             if (ObjectiveService.IsBossLevel(ctx.CurrentLevel))
             {
                 GD.Print("🔮 Der Lich-Magier erwartet dich... 🔮");
                 return;
             }
             
-            // Teleporter spawnen (30% Chance)
-            if (ctx.Rng.NextDouble() < 0.3)
-            {
-                SpawnTeleporterPair(ctx);
-            }
+            // 1. Magische Barrieren (zufällige Anzahl: 2-5)
+            int barrierCount = ctx.Rng.Next(2, 6); // 2-5 Barrieren
+            SpawnMagicBarriers(ctx, barrierCount);
             
-            // Runen-Fallen spawnen (40% Chance)
-            if (ctx.Rng.NextDouble() < 0.4)
-            {
-                SpawnRuneTraps(ctx);
-            }
+            // 2. Genau 1 Teleporter-Paar
+            SpawnTeleporterPair(ctx);
+            
+            // ENTFERNT: Runen-Fallen Code
         }
         
         public void OnLevelComplete(GameContext ctx)
@@ -95,9 +92,10 @@ namespace Dungeon2048.Core.World
         
         public EnemyType GetBossType() => EnemyType.LichMage;
         
-        private void SpawnMagicBarriers(GameContext ctx)
+        private void SpawnMagicBarriers(GameContext ctx, int count)
         {
-            int count = ctx.Rng.Next(2, 4);
+            GD.Print($"✨ Spawne {count} magische Barrieren");
+            
             for (int i = 0; i < count; i++)
             {
                 var pos = ctx.RandomFreeCell();
@@ -108,7 +106,7 @@ namespace Dungeon2048.Core.World
         private void SpawnTeleporterPair(GameContext ctx)
         {
             var pos1 = ctx.RandomFreeCell();
-            var pos2 = ctx.RandomFreeCell();
+            var pos2 = FindValidTeleporterPosition(ctx, pos1);
             
             var teleporter1 = new Teleporter(pos1.X, pos1.Y);
             var teleporter2 = new Teleporter(pos2.X, pos2.Y);
@@ -120,18 +118,33 @@ namespace Dungeon2048.Core.World
             ctx.Teleporters.Add(teleporter1);
             ctx.Teleporters.Add(teleporter2);
             
-            GD.Print("🌀 Teleporter-Paar gespawnt!");
+            GD.Print($"🌀 Teleporter-Paar gespawnt: ({pos1.X},{pos1.Y}) <-> ({pos2.X},{pos2.Y})");
         }
         
-        private void SpawnRuneTraps(GameContext ctx)
+        private (int X, int Y) FindValidTeleporterPosition(GameContext ctx, (int X, int Y) firstPos)
         {
-            int count = ctx.Rng.Next(2, 5);
-            for (int i = 0; i < count; i++)
+            const int maxAttempts = 50;
+            int attempts = 0;
+            
+            while (attempts < maxAttempts)
             {
                 var pos = ctx.RandomFreeCell();
-                ctx.RuneTraps.Add(new RuneTrap(pos.X, pos.Y));
+                
+                // Prüfen: Nicht auf gleicher X- oder Y-Achse
+                if (pos.X != firstPos.X && pos.Y != firstPos.Y)
+                {
+                    return pos;
+                }
+                
+                attempts++;
             }
-            GD.Print($"⚡ {count} Runen-Fallen platziert!");
+            
+            // Fallback: Wenn nach 50 Versuchen keine gültige Position gefunden
+            GD.PrintErr("⚠️ Konnte keine gültige Teleporter-Position finden, verwende Fallback");
+            var fallback = ctx.RandomFreeCell();
+            return fallback;
         }
+        
+        // ENTFERNT: SpawnRuneTraps() Methode
     }
 }

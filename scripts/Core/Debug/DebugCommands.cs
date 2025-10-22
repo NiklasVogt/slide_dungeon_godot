@@ -91,9 +91,27 @@ namespace Dungeon2048.Core.Debug
             // Generate new objective
             ctx.Objective = Objectives.ObjectiveService.Generate(ctx.Rng, level);
             
+            // Spawn initial stones (wie bei normalem Level-Start)
+            SpawnInitialStones(ctx);
+            
+            // Biome-spezifische Level-Start-Logik ausführen
+            ctx.BiomeSystem.CurrentBiome?.OnLevelStart(ctx);
+            
             GD.Print($"=== Jumped to Level {level} ===");
             GD.Print($"Biome: {ctx.BiomeSystem.CurrentBiome.Name}");
             GD.Print($"Objective: {ctx.Objective.Description}");
+        }
+        
+        // Helper-Methode für Initial Stones
+        private static void SpawnInitialStones(GameContext ctx)
+        {
+            int count = ctx.Rng.Next(1, 4);
+            for (int i = 0; i < count; i++)
+            {
+                var p = ctx.RandomFreeCell();
+                ctx.Stones.Add(new Entities.Stone(p.X, p.Y));
+            }
+            GD.Print($"Spawned {count} initial stones");
         }
         
         public static void PrintBiomeInfo(GameContext ctx)
@@ -128,21 +146,18 @@ namespace Dungeon2048.Core.Debug
             }
         }
         
-        // NEU: Heal Player komplett
         public static void HealPlayer(GameContext ctx)
         {
             ctx.Player.Hp = ctx.Player.MaxHp;
             GD.Print($"Player healed to full: {ctx.Player.Hp}/{ctx.Player.MaxHp} HP");
         }
         
-        // NEU: Give Souls
         public static void GiveSouls(GameContext ctx, int amount)
         {
             ctx.SoulManager.AddSouls(amount);
             GD.Print($"Added {amount} souls. Total: {ctx.SoulManager.CurrentSouls}");
         }
         
-        // NEU: Skip to next level (Door shortcut)
         public static void SkipLevel(GameContext ctx)
         {
             if (ctx.Door != null && ctx.Door.IsActive)
@@ -156,7 +171,6 @@ namespace Dungeon2048.Core.Debug
             }
         }
         
-        // NEU: Toggle Hex Curse
         public static void ToggleHexCurse(GameContext ctx)
         {
             if (ctx.IsHexCursed)
@@ -171,11 +185,10 @@ namespace Dungeon2048.Core.Debug
             }
         }
         
-        // NEU: Spawn Teleporter Pair
         public static void SpawnTeleporters(GameContext ctx)
         {
             var pos1 = ctx.RandomFreeCell();
-            var pos2 = ctx.RandomFreeCell();
+            var pos2 = FindValidTeleporterPosition(ctx, pos1);
             
             var t1 = new Tiles.Teleporter(pos1.X, pos1.Y);
             var t2 = new Tiles.Teleporter(pos2.X, pos2.Y);
@@ -187,6 +200,29 @@ namespace Dungeon2048.Core.Debug
             ctx.Teleporters.Add(t2);
             
             GD.Print($"Spawned teleporter pair at ({pos1.X},{pos1.Y}) <-> ({pos2.X},{pos2.Y})");
+        }
+        
+        // Helper für gültige Teleporter-Position
+        private static (int X, int Y) FindValidTeleporterPosition(GameContext ctx, (int X, int Y) firstPos)
+        {
+            const int maxAttempts = 50;
+            int attempts = 0;
+            
+            while (attempts < maxAttempts)
+            {
+                var pos = ctx.RandomFreeCell();
+                
+                // Nicht auf gleicher X- oder Y-Achse
+                if (pos.X != firstPos.X && pos.Y != firstPos.Y)
+                {
+                    return pos;
+                }
+                
+                attempts++;
+            }
+            
+            GD.PrintErr("⚠️ Konnte keine gültige Teleporter-Position finden (Debug)");
+            return ctx.RandomFreeCell();
         }
     }
 }

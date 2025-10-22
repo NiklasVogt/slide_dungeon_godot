@@ -1,4 +1,4 @@
-// ===== SAVE AS: scripts/Core/Tiles/TeleporterTile.cs =====
+// scripts/Core/Tiles/TeleporterTile.cs
 using System.Linq;
 using Godot;
 
@@ -14,19 +14,10 @@ namespace Dungeon2048.Core.Tiles
             return false;
         }
 
+        // ÄNDERUNG: OnEnter macht NICHTS mehr - Teleportation passiert später
         public void OnEnter(Entities.EntityBase entity, Services.GameContext ctx, int x, int y)
         {
-            var teleporter = ctx.Teleporters.FirstOrDefault(t => t.X == x && t.Y == y && t.IsActive);
-            if (teleporter == null || teleporter.LinkedTeleporterId == null) return;
-            
-            var target = ctx.Teleporters.FirstOrDefault(t => t.Id == teleporter.LinkedTeleporterId);
-            if (target == null) return;
-            
-            // Teleportiere Entity
-            entity.X = target.X;
-            entity.Y = target.Y;
-            
-            GD.Print($"🌀 {(entity is Entities.Player ? "Spieler" : "Gegner")} teleportiert zu ({target.X}, {target.Y})!");
+            // Keine sofortige Teleportation mehr
         }
 
         public void OnHit(Entities.EntityBase entity, Services.GameContext ctx, int x, int y)

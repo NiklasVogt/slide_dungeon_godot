@@ -5,9 +5,6 @@ using Dungeon2048.Core.Spells;
 
 namespace Dungeon2048.Nodes
 {
-    /// <summary>
-    /// Zentralisierte Initialisierung aller Registries
-    /// </summary>
     public static class RegistryInitializer
     {
         private static bool _initialized = false;
@@ -37,7 +34,7 @@ namespace Dungeon2048.Nodes
             
             // Akt 2 Tiles
             TileRegistry.Register(new TeleporterTile());
-            TileRegistry.Register(new RuneTrapTile());
+            // ENTFERNT: TileRegistry.Register(new RuneTrapTile());
             TileRegistry.Register(new MagicBarrierTile());
         }
 
