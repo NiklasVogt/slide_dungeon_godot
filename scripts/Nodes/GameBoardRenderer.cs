@@ -35,26 +35,76 @@ namespace Dungeon2048.Nodes
             var ts = _layout.TileSize;
             var origin = _layout.GetGridOrigin();
             var boardSize = _layout.GetBoardSize();
-            
+
             // Biome-basierte Hintergrundfarbe
             var bg = ctx.BiomeSystem.GetBackgroundColor();
             _gameBoard.DrawRect(new Rect2(origin, boardSize), bg);
-            
+
+            // Spezielle Tile-Highlights BEVOR die Grid-Linien gezeichnet werden
+            DrawSpecialTileHighlights(ctx, origin, ts);
+
             // Biome-basierte Gridfarbe
             var col = ctx.BiomeSystem.GetGridColor();
 
             for (int i = 0; i <= size; i++)
             {
                 _gameBoard.DrawLine(
-                    new Vector2(origin.X, origin.Y + i * ts), 
-                    new Vector2(origin.X + size * ts, origin.Y + i * ts), 
+                    new Vector2(origin.X, origin.Y + i * ts),
+                    new Vector2(origin.X + size * ts, origin.Y + i * ts),
                     col, 2
                 );
                 _gameBoard.DrawLine(
-                    new Vector2(origin.X + i * ts, origin.Y), 
-                    new Vector2(origin.X + i * ts, origin.Y + size * ts), 
+                    new Vector2(origin.X + i * ts, origin.Y),
+                    new Vector2(origin.X + i * ts, origin.Y + size * ts),
                     col, 2
                 );
+            }
+        }
+
+        /// <summary>
+        /// Zeichnet spezielle Highlights für Tiles (FallingRocks, Fire, etc.)
+        /// </summary>
+        private void DrawSpecialTileHighlights(GameContext ctx, Vector2 origin, float ts)
+        {
+            // Fire Tiles - Orange Glow
+            foreach (var fire in ctx.FireTiles)
+            {
+                if (fire.IsExtinguished) continue;
+
+                var tilePos = new Vector2(origin.X + fire.X * ts, origin.Y + fire.Y * ts);
+                var tileRect = new Rect2(tilePos, new Vector2(ts, ts));
+
+                // Orange-rotes Glühen mit etwas Transparenz
+                var fireGlow = new Color(1.0f, 0.3f, 0.0f, 0.3f);
+                _gameBoard.DrawRect(tileRect, fireGlow);
+            }
+
+            // Falling Rocks - Warnung und Gefahr
+            foreach (var rock in ctx.FallingRocks)
+            {
+                if (rock.HasFallen) continue;
+
+                var tilePos = new Vector2(origin.X + rock.X * ts, origin.Y + rock.Y * ts);
+                var tileRect = new Rect2(tilePos, new Vector2(ts, ts));
+
+                if (rock.IsWarning)
+                {
+                    // Gelbe Warnung (pulsierend darstellbar durch Transparenz)
+                    var warningColor = new Color(1.0f, 0.8f, 0.0f, 0.4f);
+                    _gameBoard.DrawRect(tileRect, warningColor);
+
+                    // Zusätzlicher Rand für extra Aufmerksamkeit
+                    _gameBoard.DrawRect(tileRect, new Color(1.0f, 0.6f, 0.0f, 0.8f), false, 3);
+                }
+                else if (rock.ShouldFall)
+                {
+                    // Rote Gefahr (stark leuchtend)
+                    var dangerColor = new Color(1.0f, 0.0f, 0.0f, 0.6f);
+                    _gameBoard.DrawRect(tileRect, dangerColor);
+
+                    // Dicker roter Rand
+                    _gameBoard.DrawRect(tileRect, new Color(1.0f, 0.0f, 0.0f, 1.0f), false, 4);
+                }
             }
         }
 
@@ -269,9 +319,9 @@ namespace Dungeon2048.Nodes
                 int passesLeft = FireTile.MaxPasses - f.EntitiesPassedThrough;
 
                 // Glühende Orange-Rot Farbe für Feuer
-                var fireColor = new Color(1.0f, 0.3f, 0.0f); // Orange-Rot
+                var fireColor = new Color(1.0f, 0.3f, 0.0f, 0.85f); // Orange-Rot, leicht transparent
 
-                var node = GetOrCreateEntityNode(name, 1, fireColor, passesLeft,
+                var node = GetOrCreateEntityNode(name, 5, fireColor, passesLeft,
                     showBadge: true, badgeText: "🔥", displayName: "Lava");
                 SlideNodeTo(node, _layout.MapToLocal(new Vector2I(f.X, f.Y)));
                 UpdateEntityNodeVisuals(name, passesLeft, "🔥", "Lava");
@@ -289,8 +339,8 @@ namespace Dungeon2048.Nodes
                 if (r.IsWarning)
                 {
                     // Warnung: Gelb/Orange blinkend
-                    var warningColor = new Color(1.0f, 0.8f, 0.0f, 0.6f); // Gelb, halbtransparent
-                    var node = GetOrCreateEntityNode(name, 1, warningColor, r.WarningTurnsRemaining,
+                    var warningColor = new Color(1.0f, 0.8f, 0.0f, 0.8f); // Gelb, weniger transparent
+                    var node = GetOrCreateEntityNode(name, 5, warningColor, r.WarningTurnsRemaining,
                         showBadge: true, badgeText: "⚠️", displayName: "Warnung!");
                     SlideNodeTo(node, _layout.MapToLocal(new Vector2I(r.X, r.Y)));
                     UpdateEntityNodeVisuals(name, r.WarningTurnsRemaining, "⚠️", "Warnung!");
@@ -298,8 +348,8 @@ namespace Dungeon2048.Nodes
                 else if (r.ShouldFall)
                 {
                     // Direkt vor dem Fallen: Rot
-                    var dangerColor = new Color(1.0f, 0.0f, 0.0f, 0.8f); // Rot
-                    var node = GetOrCreateEntityNode(name, 1, dangerColor, 1,
+                    var dangerColor = new Color(1.0f, 0.0f, 0.0f, 0.9f); // Rot, sehr sichtbar
+                    var node = GetOrCreateEntityNode(name, 7, dangerColor, 1,
                         showBadge: true, badgeText: "💥", displayName: "GEFAHR!");
                     SlideNodeTo(node, _layout.MapToLocal(new Vector2I(r.X, r.Y)));
                     UpdateEntityNodeVisuals(name, 1, "💥", "GEFAHR!");
