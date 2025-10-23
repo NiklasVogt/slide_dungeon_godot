@@ -367,10 +367,14 @@ public bool CanMove()
     if (Type == EnemyType.ForgeMaster) return false;
     if (Type == EnemyType.HexWitch) return false; // NEU: Hex Witch bewegt sich langsam/selten
 
-    // Schmied-Golem bewegt sich nur jeden 3. Zug
+    return true;
+}
+
+public bool CanAttack()
+{
+    // Schmied-Golem greift nur jeden 3. Zug an (aber bewegt sich immer)
     if (Type == EnemyType.SchmiedGolem)
     {
-        GolemMoveCounter++;
         return GolemMoveCounter >= 3;
     }
 
@@ -467,10 +471,14 @@ public bool CanMove()
                 Godot.GD.Print($"{DisplayName} nimmt {burnDamage} Burning-Schaden! ({BurningStacks} Stacks)");
             }
 
-            // Schmied-Golem Counter zurücksetzen wenn bewegt
-            if (Type == EnemyType.SchmiedGolem && GolemMoveCounter >= 3)
+            // Schmied-Golem Counter inkrementieren und bei 3 zurücksetzen
+            if (Type == EnemyType.SchmiedGolem)
             {
-                GolemMoveCounter = 0;
+                GolemMoveCounter++;
+                if (GolemMoveCounter > 3)
+                {
+                    GolemMoveCounter = 1; // Zurück zu 1, nicht 0
+                }
             }
         }
         

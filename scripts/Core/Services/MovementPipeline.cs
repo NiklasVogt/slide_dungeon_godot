@@ -223,10 +223,22 @@ namespace Dungeon2048.Core.Services
             {
                 if (ctx.Player.X == tx && ctx.Player.Y == ty)
                 {
-                    if (enemy.Type != EnemyType.Thorns)
+                    // Prüfe ob Enemy angreifen kann (z.B. Schmied-Golem)
+                    if (enemy.CanAttack() && enemy.Type != EnemyType.Thorns)
                     {
                         bus.AddAttackEvent(new AttackEvent($"Enemy_{enemy.Id}", "Player", new Vector2I(dx, dy)));
                         ctx.Player.Hp -= enemy.Atk;
+
+                        // Schmied-Golem hat angegriffen, Counter zurücksetzen
+                        if (enemy.Type == EnemyType.SchmiedGolem)
+                        {
+                            enemy.GolemMoveCounter = 0;
+                            GD.Print($"🔨 Schmied-Golem schlägt zu! Counter zurückgesetzt.");
+                        }
+                    }
+                    else if (!enemy.CanAttack())
+                    {
+                        GD.Print($"{enemy.DisplayName} kann noch nicht angreifen! (Counter: {enemy.GolemMoveCounter}/3)");
                     }
                     return;
                 }
@@ -253,9 +265,24 @@ namespace Dungeon2048.Core.Services
                         return;
                     }
 
-                    if (target.Type != EnemyType.Masochist)
+                    // Prüfe ob Enemy angreifen kann
+                    if (enemy.CanAttack())
                     {
-                        target.Hp -= enemy.Atk;
+                        if (target.Type != EnemyType.Masochist)
+                        {
+                            target.Hp -= enemy.Atk;
+                        }
+
+                        // Schmied-Golem hat angegriffen, Counter zurücksetzen
+                        if (enemy.Type == EnemyType.SchmiedGolem)
+                        {
+                            enemy.GolemMoveCounter = 0;
+                            GD.Print($"🔨 Schmied-Golem schlägt anderen Gegner! Counter zurückgesetzt.");
+                        }
+                    }
+                    else
+                    {
+                        GD.Print($"{enemy.DisplayName} kann noch nicht angreifen! (Counter: {enemy.GolemMoveCounter}/3)");
                     }
 
                     if (target.Type == EnemyType.Thorns)

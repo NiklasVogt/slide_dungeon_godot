@@ -119,7 +119,7 @@ namespace Dungeon2048.Nodes
         private void PruneMissingNodes(GameContext ctx)
         {
             var alive = new HashSet<string> { "Player" };
-            
+
             foreach (var e in ctx.Enemies) alive.Add($"Enemy_{e.Id}");
             foreach (var s in ctx.Stones) alive.Add($"Stone_{s.Id}");
             foreach (var g in ctx.Gravestones) alive.Add($"Gravestone_{g.Id}");
@@ -129,7 +129,9 @@ namespace Dungeon2048.Nodes
             foreach (var t in ctx.Teleporters.Where(t => t.IsActive)) alive.Add($"Teleporter_{t.Id}");
             foreach (var r in ctx.RuneTraps.Where(r => !r.IsTriggered)) alive.Add($"RuneTrap_{r.Id}");
             foreach (var m in ctx.MagicBarriers) alive.Add($"MagicBarrier_{m.Id}");
-            
+            foreach (var f in ctx.FireTiles.Where(f => !f.IsExtinguished)) alive.Add($"FireTile_{f.Id}");
+            foreach (var r in ctx.FallingRocks.Where(r => !r.HasFallen)) alive.Add($"FallingRock_{r.Id}");
+
             if (ctx.Door != null && ctx.Door.IsActive) alive.Add("Door");
 
             foreach (var kv in _entityNodes.ToArray())
@@ -153,7 +155,7 @@ namespace Dungeon2048.Nodes
                 EnemyType.Necrophage   => new Color("663399"),
                 EnemyType.Mimic        => new Color("dc143c"),
                 EnemyType.GoblinKing   => new Color("0a5f0a"),
-                
+
                 // Akt 2
                 EnemyType.Orc          => new Color("f58231"),
                 EnemyType.Kultist      => new Color("000080"),
@@ -162,7 +164,16 @@ namespace Dungeon2048.Nodes
                 EnemyType.MirrorKnight => new Color("c0c0c0"),
                 EnemyType.HexWitch     => new Color("9370db"),
                 EnemyType.LichMage     => new Color("4b0082"),
-                
+
+                // Akt 3
+                EnemyType.FireElemental    => new Color("ff4500"), // Orange-Rot
+                EnemyType.Moloch           => new Color("8b0000"), // Dunkelrot
+                EnemyType.SchmiedGolem     => new Color("cd7f32"), // Bronze
+                EnemyType.Pyromaniac       => new Color("ff6347"), // Tomaten-Rot mit Funken
+                EnemyType.ObsidianWarrior  => new Color("1a1a1a"), // Schwarz (Obsidian)
+                EnemyType.ForgeMaster      => new Color("708090"), // Grau (Schmied)
+                EnemyType.FireGiant        => new Color("dc143c"), // Crimson (Boss)
+
                 // Sonstige
                 EnemyType.Dragon       => new Color("911eb4"),
                 EnemyType.Boss         => new Color("111111"),
@@ -174,15 +185,27 @@ namespace Dungeon2048.Nodes
 
         private string GetEnemyBadge(Enemy e)
         {
+            // Burning Status hat höchste Priorität (außer Boss)
+            if (e.BurningStacks > 0 && !e.IsBoss)
+                return $"🔥{e.BurningStacks}";
+
             if (e.IsBoss)
                 return "👑";
-            
+
             if (e.Type == EnemyType.Necrophage && e.HealedThisRound > 0)
                 return $"+{e.HealedThisRound}";
-            
+
             if (e.Type == EnemyType.Gargoyle)
                 return e.HasMoved ? "⚡" : "🗿";
-            
+
+            // Forge Master: Zeige Buff Stacks
+            if (e.Type == EnemyType.ForgeMaster && e.ForgeBuffStacks > 0)
+                return $"⚒️{e.ForgeBuffStacks}";
+
+            // Schmied-Golem: Zeige Attack Counter
+            if (e.Type == EnemyType.SchmiedGolem)
+                return $"🔨{e.GolemMoveCounter}";
+
             return e.EnemyLevel.ToString();
         }
 

@@ -87,6 +87,8 @@ namespace Dungeon2048.Nodes
             AnimateTeleporters(ctx);
             AnimateRuneTraps(ctx);
             AnimateMagicBarriers(ctx);
+            AnimateFireTiles(ctx);
+            AnimateFallingRocks(ctx);
             AnimateDoor(ctx);
 
             PruneMissingNodes(ctx);
@@ -254,6 +256,54 @@ namespace Dungeon2048.Nodes
                 var node = GetOrCreateEntityNode(name, 2, Colors.LightGreen, 1, displayName: "Tür");
                 SlideNodeTo(node, _layout.MapToLocal(new Vector2I(ctx.Door.X, ctx.Door.Y)));
                 UpdateEntityNodeVisuals(name, 1, displayName: "Tür");
+            }
+        }
+
+        private void AnimateFireTiles(GameContext ctx)
+        {
+            foreach (var f in ctx.FireTiles)
+            {
+                if (f.IsExtinguished) continue;
+
+                var name = $"FireTile_{f.Id}";
+                int passesLeft = FireTile.MaxPasses - f.EntitiesPassedThrough;
+
+                // Glühende Orange-Rot Farbe für Feuer
+                var fireColor = new Color(1.0f, 0.3f, 0.0f); // Orange-Rot
+
+                var node = GetOrCreateEntityNode(name, 1, fireColor, passesLeft,
+                    showBadge: true, badgeText: "🔥", displayName: "Lava");
+                SlideNodeTo(node, _layout.MapToLocal(new Vector2I(f.X, f.Y)));
+                UpdateEntityNodeVisuals(name, passesLeft, "🔥", "Lava");
+            }
+        }
+
+        private void AnimateFallingRocks(GameContext ctx)
+        {
+            foreach (var r in ctx.FallingRocks)
+            {
+                if (r.HasFallen) continue;
+
+                var name = $"FallingRock_{r.Id}";
+
+                if (r.IsWarning)
+                {
+                    // Warnung: Gelb/Orange blinkend
+                    var warningColor = new Color(1.0f, 0.8f, 0.0f, 0.6f); // Gelb, halbtransparent
+                    var node = GetOrCreateEntityNode(name, 1, warningColor, r.WarningTurnsRemaining,
+                        showBadge: true, badgeText: "⚠️", displayName: "Warnung!");
+                    SlideNodeTo(node, _layout.MapToLocal(new Vector2I(r.X, r.Y)));
+                    UpdateEntityNodeVisuals(name, r.WarningTurnsRemaining, "⚠️", "Warnung!");
+                }
+                else if (r.ShouldFall)
+                {
+                    // Direkt vor dem Fallen: Rot
+                    var dangerColor = new Color(1.0f, 0.0f, 0.0f, 0.8f); // Rot
+                    var node = GetOrCreateEntityNode(name, 1, dangerColor, 1,
+                        showBadge: true, badgeText: "💥", displayName: "GEFAHR!");
+                    SlideNodeTo(node, _layout.MapToLocal(new Vector2I(r.X, r.Y)));
+                    UpdateEntityNodeVisuals(name, 1, "💥", "GEFAHR!");
+                }
             }
         }
 
