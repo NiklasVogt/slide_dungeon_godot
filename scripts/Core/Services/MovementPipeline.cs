@@ -419,6 +419,21 @@ namespace Dungeon2048.Core.Services
 
                 ResolveAfterMove(ctx, bus, entity, dx, dy, occupied, startX, startY);
 
+                // Fire Elemental: Hinterlässt Feuer auf vorheriger Position
+                if (entity is Enemy fireElem && fireElem.Type == EnemyType.FireElemental)
+                {
+                    // Nur wenn sich der Enemy bewegt hat
+                    if (fireElem.X != startX || fireElem.Y != startY)
+                    {
+                        // Prüfe ob schon ein Feuer dort ist
+                        if (!ctx.FireTiles.Any(f => f.X == startX && f.Y == startY))
+                        {
+                            ctx.FireTiles.Add(new FireTile(startX, startY));
+                            GD.Print($"🔥 Feuer-Elementar hinterlässt Lava bei ({startX},{startY})");
+                        }
+                    }
+                }
+
                 // Masochist Schaden
                 if (entity is Enemy en2 && en2.Type == EnemyType.Masochist)
                 {
@@ -445,7 +460,45 @@ namespace Dungeon2048.Core.Services
                 GD.Print("Freeze Ende: Gegner bewegen sich wieder.");
             }
             HandleKultistAttacks(ctx, bus);
+            HandleForgeMasterBuffs(ctx);
             return bus.Attacks;
+        }
+
+        private static void HandleForgeMasterBuffs(GameContext ctx)
+        {
+            foreach (var forgeMaster in ctx.Enemies.Where(e => e.Type == EnemyType.ForgeMaster))
+            {
+                // Finde alle benachbarten Gegner (nicht diagonal, nur 4 Richtungen)
+                var adjacentEnemies = ctx.Enemies.Where(e =>
+                    e.Id != forgeMaster.Id && // Nicht sich selbst
+                    ((System.Math.Abs(e.X - forgeMaster.X) == 1 && e.Y == forgeMaster.Y) || // Links/Rechts
+                     (System.Math.Abs(e.Y - forgeMaster.Y) == 1 && e.X == forgeMaster.X))   // Oben/Unten
+                ).ToList();
+
+                foreach (var enemy in adjacentEnemies)
+                {
+                    // Buff: +2 HP und +1 ATK pro Zug
+                    enemy.Hp += 2;
+                    enemy.Atk += 1;
+                    enemy.ForgeBuffStacks++;
+
+                    GD.Print($"⚒️ Schmiedemeister buffet {enemy.DisplayName}! +2 HP, +1 ATK (Total Buffs: {enemy.ForgeBuffStacks})");
+                }
+            }
+
+            // Forge Master bufft auch den Spieler wenn benachbart (als Schaden)
+            foreach (var forgeMaster in ctx.Enemies.Where(e => e.Type == EnemyType.ForgeMaster))
+            {
+                bool adjacentToPlayer =
+                    (System.Math.Abs(ctx.Player.X - forgeMaster.X) == 1 && ctx.Player.Y == forgeMaster.Y) ||
+                    (System.Math.Abs(ctx.Player.Y - forgeMaster.Y) == 1 && ctx.Player.X == forgeMaster.X);
+
+                if (adjacentToPlayer)
+                {
+                    ctx.Player.Hp -= forgeMaster.Atk;
+                    GD.Print($"⚒️ Schmiedemeister hämmert den Spieler! {forgeMaster.Atk} Schaden!");
+                }
+            }
         }
     }
 }
