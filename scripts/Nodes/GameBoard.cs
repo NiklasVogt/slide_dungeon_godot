@@ -125,6 +125,9 @@ namespace Dungeon2048.Nodes
             await ToSignal(GetTree().CreateTimer(0.12f), SceneTreeTimer.SignalName.Timeout);
             await ToSignal(GetTree().CreateTimer(0.18f), SceneTreeTimer.SignalName.Timeout);
 
+            // Fire Giant Mechanics (after all entities reached final position)
+            _ctx.HandleFireGiantMechanics();
+
             // Process Burning Damage (after combat)
             ProcessBurningDamage();
 

@@ -132,7 +132,6 @@ namespace Dungeon2048.Core.Services
             AgeBonePiles();
             ProcessFireTiles();
             AdvanceFallingRocks();
-            HandleFireGiantMechanics();
             ApplyBurningToEntitiesOnFire();
 
             // NEU: Teleporter am Ende des Zuges verarbeiten
@@ -628,13 +627,13 @@ namespace Dungeon2048.Core.Services
             }
         }
 
-        private void HandleFireGiantMechanics()
+        public void HandleFireGiantMechanics()
         {
             var fireGiant = Enemies.FirstOrDefault(e => e.Type == EnemyType.FireGiant && e.IsBoss);
             if (fireGiant == null) return;
 
-            // Alle 2 Swipes: Hammer-Schlag (Diagonal-Kreuz-Pattern wird zu Feuer)
-            if (TotalSwipes % 2 == 0)
+            // Alle 4 Swipes: Hammer-Schlag (Diagonal-Kreuz-Pattern wird zu Feuer)
+            if (TotalSwipes % 4 == 0)
             {
                 // Diagonal cross pattern: 4 diagonale Richtungen
                 var diagonals = new[] {
