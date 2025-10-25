@@ -63,8 +63,8 @@ namespace Dungeon2048.Core.Entities
         public bool IsBoss;
 
         // Spezielle Mechanik-Properties
-        public bool IsDisguised = false;     
-        
+        public bool IsDisguised = false;
+
         public int MimicHitCount = 0;              // NEU: Wie oft wurde getarnter Mimic getroffen
         public const int MimicHitsToReveal = 3;      // Mimic: Getarnt als Spell Drop
         public int HealedThisRound = 0;            // Necrophage: Tracking für UI-Display
@@ -73,10 +73,17 @@ namespace Dungeon2048.Core.Entities
         public bool HasMoved = false;              // Gargoyle: Statue-Mechanik
         public int ShieldStacks = 0;               // Für defensive Buffs
         public int AttachedToPlayerId = -1;        // Parasite: Attached state
-        public string ClonedFromId = null;   
+        public string ClonedFromId = null;
         public int LichTeleportCounter = 0;        // Lich-Magier Teleport Tracking
         public int HexCurseDuration = 0;           // Hex Witch: Verbleibende Züge des Fluchs
         public bool IsPhase2 = false;         // Doppelganger: Original tracking
+
+        // Akt 3: Vulkanschmiede Status Effects & Mechanics
+        public int BurningStacks = 0;              // Burning: Stapelbarer Schaden über Zeit
+        public int BurningTurnsRemaining = 0;      // Burning: Verschwindet nach 2 Zügen
+        public int GolemMoveCounter = 0;           // Schmied-Golem: Bewegt sich nur jeden 3. Zug
+        public bool StandingOnFire = false;        // Moloch: Tracking für Heilung auf Lava
+        public int ForgeBuffStacks = 0;            // Forge Master: Wie oft wurde dieser Gegner gebuffed
 
         public int MaxHp { get; private set; }
         public Enemy(int x, int y, EnemyType type, int enemyLevel, bool isBoss = false)
@@ -360,6 +367,18 @@ public bool CanMove()
     if (Type == EnemyType.GlacialSentinel) return false;
     if (Type == EnemyType.ForgeMaster) return false;
     if (Type == EnemyType.HexWitch) return false; // NEU: Hex Witch bewegt sich langsam/selten
+
+    return true;
+}
+
+public bool CanAttack()
+{
+    // Schmied-Golem greift nur jeden 3. Zug an (aber bewegt sich immer)
+    if (Type == EnemyType.SchmiedGolem)
+    {
+        return GolemMoveCounter >= 3;
+    }
+
     return true;
 }
         
@@ -444,6 +463,27 @@ public bool CanMove()
 
             if (FrozenTurnsRemaining > 0)
                 FrozenTurnsRemaining--;
+
+            // BURNING DAMAGE ENTFERNT - wird jetzt nach Combat in GameBoard.ProcessBurningDamage() berechnet
+
+            // Burning Duration - Verschwindet nach 2 Zügen
+            if (BurningTurnsRemaining > 0)
+            {
+                BurningTurnsRemaining--;
+                if (BurningTurnsRemaining == 0)
+                {
+                    BurningStacks = 0;
+                    Godot.GD.Print($"{DisplayName}: Burning-Effekt ist abgelaufen.");
+                }
+            }
+
+            // Schmied-Golem Counter inkrementieren jeden Zug
+            // (wird in MovementPipeline auf 0 gesetzt nach Angriff)
+            if (Type == EnemyType.SchmiedGolem)
+            {
+                GolemMoveCounter++;
+                Godot.GD.Print($"🔨 Schmied-Golem Counter: {GolemMoveCounter}/3");
+            }
         }
         
         public void SyncMirrorKnightStats(Entities.Player player)
@@ -467,9 +507,37 @@ public int ApplyGargoyleDamageReduction(int incomingDamage)
 public bool ShouldLichTeleport()
 {
     if (Type != EnemyType.LichMage) return false;
-    
+
     LichTeleportCounter++;
     return LichTeleportCounter >= 2; // Alle 2 Züge
+}
+
+// Moloch Heilung auf Feuer:
+public void HealOnFire(int healAmount)
+{
+    if (Type != EnemyType.Moloch) return;
+    if (!StandingOnFire) return;
+
+    Hp = System.Math.Min(Hp + healAmount, MaxHp);
+    Godot.GD.Print($"{DisplayName} heilt {healAmount} HP auf Lava!");
+}
+
+// Obsidian Warrior: Wird stärker durch Feuer-Schaden
+public void AbsorbFireDamage(int damageAmount)
+{
+    if (Type != EnemyType.ObsidianWarrior) return;
+
+    // Anstatt Schaden zu nehmen, wird er stärker
+    int atkBoost = damageAmount / 2; // 50% des Schadens wird zu ATK
+    Atk += atkBoost;
+    Godot.GD.Print($"{DisplayName} absorbiert Feuer-Energie! +{atkBoost} ATK");
+}
+
+// Forge Master: Bufft benachbarte Gegner
+public void ApplyForgeBuffs()
+{
+    if (Type != EnemyType.ForgeMaster) return;
+    ForgeBuffStacks++;
 }
     }
 }

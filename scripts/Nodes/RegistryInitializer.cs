@@ -36,6 +36,10 @@ namespace Dungeon2048.Nodes
             TileRegistry.Register(new TeleporterTile());
             // ENTFERNT: TileRegistry.Register(new RuneTrapTile());
             TileRegistry.Register(new MagicBarrierTile());
+
+            // Akt 3 Tiles
+            TileRegistry.Register(new FireTileBehavior());
+            TileRegistry.Register(new FallingRockTile());
         }
 
         private static void RegisterEnemies()
@@ -56,6 +60,18 @@ namespace Dungeon2048.Nodes
             EnemyRegistry.Register(new MirrorKnightArch());
             EnemyRegistry.Register(new HexWitchArch());
             EnemyRegistry.Register(new LichMageArch());
+
+            // Akt 3
+            EnemyRegistry.Register(new FireElementalArch());
+            EnemyRegistry.Register(new MolochArch());
+            EnemyRegistry.Register(new SchmiedGolemArch());
+            EnemyRegistry.Register(new PyromaniacArch());
+            EnemyRegistry.Register(new ObsidianWarriorArch());
+            EnemyRegistry.Register(new ForgeMasterArch());
+            EnemyRegistry.Register(new FireGiantArch());
+
+            // Legacy/Special
+            EnemyRegistry.Register(new ThornsArch());
         }
 
         private static void RegisterSpells()

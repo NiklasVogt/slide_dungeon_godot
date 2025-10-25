@@ -87,13 +87,31 @@ namespace Dungeon2048.Core.Services
             }
         }
 
+        private static void SweepEnterForEntity(GameContext ctx, EntityBase entity, int startX, int startY, int endX, int endY, int dx, int dy)
+        {
+            int x = startX, y = startY;
+            while (x != endX || y != endY)
+            {
+                x += dx; y += dy;
+                TileRegistry.Enter(entity, ctx, x, y);
+            }
+        }
+
         private static void ResolveAfterMove(GameContext ctx, EventBus bus, EntityBase moved, int dx, int dy, HashSet<string> occupied, int startX, int startY)
         {
             TileRegistry.Enter(moved, ctx, moved.X, moved.Y);
 
-            if (moved is Player pl && (moved.X != startX || moved.Y != startY) && (dx != 0 || dy != 0))
+            // Alle Entities sollen OnEnter für durchquerte Zellen bekommen
+            if ((moved.X != startX || moved.Y != startY) && (dx != 0 || dy != 0))
             {
-                SweepEnterForPlayer(ctx, pl, startX, startY, moved.X, moved.Y, dx, dy);
+                if (moved is Player pl)
+                {
+                    SweepEnterForPlayer(ctx, pl, startX, startY, moved.X, moved.Y, dx, dy);
+                }
+                else
+                {
+                    SweepEnterForEntity(ctx, moved, startX, startY, moved.X, moved.Y, dx, dy);
+                }
             }
 
             int tx = moved.X + dx, ty = moved.Y + dy;
@@ -223,10 +241,22 @@ namespace Dungeon2048.Core.Services
             {
                 if (ctx.Player.X == tx && ctx.Player.Y == ty)
                 {
-                    if (enemy.Type != EnemyType.Thorns)
+                    // Prüfe ob Enemy angreifen kann (z.B. Schmied-Golem)
+                    if (enemy.CanAttack() && enemy.Type != EnemyType.Thorns)
                     {
                         bus.AddAttackEvent(new AttackEvent($"Enemy_{enemy.Id}", "Player", new Vector2I(dx, dy)));
                         ctx.Player.Hp -= enemy.Atk;
+
+                        // Schmied-Golem hat angegriffen, Counter zurücksetzen
+                        if (enemy.Type == EnemyType.SchmiedGolem)
+                        {
+                            enemy.GolemMoveCounter = 0;
+                            GD.Print($"🔨 Schmied-Golem schlägt zu! Counter zurückgesetzt.");
+                        }
+                    }
+                    else if (!enemy.CanAttack())
+                    {
+                        GD.Print($"{enemy.DisplayName} kann noch nicht angreifen! (Counter: {enemy.GolemMoveCounter}/3)");
                     }
                     return;
                 }
@@ -253,9 +283,24 @@ namespace Dungeon2048.Core.Services
                         return;
                     }
 
-                    if (target.Type != EnemyType.Masochist)
+                    // Prüfe ob Enemy angreifen kann
+                    if (enemy.CanAttack())
                     {
-                        target.Hp -= enemy.Atk;
+                        if (target.Type != EnemyType.Masochist)
+                        {
+                            target.Hp -= enemy.Atk;
+                        }
+
+                        // Schmied-Golem hat angegriffen, Counter zurücksetzen
+                        if (enemy.Type == EnemyType.SchmiedGolem)
+                        {
+                            enemy.GolemMoveCounter = 0;
+                            GD.Print($"🔨 Schmied-Golem schlägt anderen Gegner! Counter zurückgesetzt.");
+                        }
+                    }
+                    else
+                    {
+                        GD.Print($"{enemy.DisplayName} kann noch nicht angreifen! (Counter: {enemy.GolemMoveCounter}/3)");
                     }
 
                     if (target.Type == EnemyType.Thorns)
@@ -419,6 +464,25 @@ namespace Dungeon2048.Core.Services
 
                 ResolveAfterMove(ctx, bus, entity, dx, dy, occupied, startX, startY);
 
+                // Fire Elemental: Hinterlässt Feuer auf vorheriger Position (40% Chance)
+                if (entity is Enemy fireElem && fireElem.Type == EnemyType.FireElemental)
+                {
+                    // Nur wenn sich der Enemy bewegt hat
+                    if (fireElem.X != startX || fireElem.Y != startY)
+                    {
+                        // 40% Chance, Lava zu hinterlassen
+                        if (ctx.Rng.NextDouble() < 0.40)
+                        {
+                            // Prüfe ob schon ein Feuer dort ist
+                            if (!ctx.FireTiles.Any(f => f.X == startX && f.Y == startY))
+                            {
+                                ctx.FireTiles.Add(new FireTile(startX, startY));
+                                GD.Print($"🔥 Feuer-Elementar hinterlässt Lava bei ({startX},{startY})");
+                            }
+                        }
+                    }
+                }
+
                 // Masochist Schaden
                 if (entity is Enemy en2 && en2.Type == EnemyType.Masochist)
                 {
@@ -445,7 +509,45 @@ namespace Dungeon2048.Core.Services
                 GD.Print("Freeze Ende: Gegner bewegen sich wieder.");
             }
             HandleKultistAttacks(ctx, bus);
+            HandleForgeMasterBuffs(ctx);
             return bus.Attacks;
+        }
+
+        private static void HandleForgeMasterBuffs(GameContext ctx)
+        {
+            foreach (var forgeMaster in ctx.Enemies.Where(e => e.Type == EnemyType.ForgeMaster))
+            {
+                // Finde alle benachbarten Gegner (nicht diagonal, nur 4 Richtungen)
+                var adjacentEnemies = ctx.Enemies.Where(e =>
+                    e.Id != forgeMaster.Id && // Nicht sich selbst
+                    ((System.Math.Abs(e.X - forgeMaster.X) == 1 && e.Y == forgeMaster.Y) || // Links/Rechts
+                     (System.Math.Abs(e.Y - forgeMaster.Y) == 1 && e.X == forgeMaster.X))   // Oben/Unten
+                ).ToList();
+
+                foreach (var enemy in adjacentEnemies)
+                {
+                    // Buff: +2 HP und +1 ATK pro Zug
+                    enemy.Hp += 2;
+                    enemy.Atk += 1;
+                    enemy.ForgeBuffStacks++;
+
+                    GD.Print($"⚒️ Schmiedemeister buffet {enemy.DisplayName}! +2 HP, +1 ATK (Total Buffs: {enemy.ForgeBuffStacks})");
+                }
+            }
+
+            // Forge Master bufft auch den Spieler wenn benachbart (als Schaden)
+            foreach (var forgeMaster in ctx.Enemies.Where(e => e.Type == EnemyType.ForgeMaster))
+            {
+                bool adjacentToPlayer =
+                    (System.Math.Abs(ctx.Player.X - forgeMaster.X) == 1 && ctx.Player.Y == forgeMaster.Y) ||
+                    (System.Math.Abs(ctx.Player.Y - forgeMaster.Y) == 1 && ctx.Player.X == forgeMaster.X);
+
+                if (adjacentToPlayer)
+                {
+                    ctx.Player.Hp -= forgeMaster.Atk;
+                    GD.Print($"⚒️ Schmiedemeister hämmert den Spieler! {forgeMaster.Atk} Schaden!");
+                }
+            }
         }
     }
 }

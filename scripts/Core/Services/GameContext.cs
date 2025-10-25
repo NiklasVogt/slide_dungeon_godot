@@ -32,6 +32,10 @@ namespace Dungeon2048.Core.Services
         public readonly List<Torch> Torches = new();
         public readonly List<BonePile> BonePiles = new();
 
+        // Tile-Listen für Akt 3: Vulkanschmiede
+        public readonly List<FireTile> FireTiles = new();
+        public readonly List<FallingRock> FallingRocks = new();
+
         public IObjective Objective = null!;
         public int CurrentLevel = 1;
         public int TotalSwipes = 0;
@@ -110,10 +114,25 @@ namespace Dungeon2048.Core.Services
                 }
             }
 
+            // Akt 3: 30% Chance pro Swipe für Falling Rock
+            if (BiomeSystem.CurrentBiome?.Type == World.BiomeType.VolcanForge)
+            {
+                if (Rng.NextDouble() < 0.30) // 30% Chance
+                {
+                    if (BiomeSystem.CurrentBiome is World.VolcanForgeBiome vfb)
+                    {
+                        vfb.SpawnFallingRock(this);
+                    }
+                }
+            }
+
             RegenerateMagicBarriers();
             HandleLichTeleport();
             UpdateMirrorKnights();
             AgeBonePiles();
+            ProcessFireTiles();
+            AdvanceFallingRocks();
+            ApplyBurningToEntitiesOnFire();
 
             // NEU: Teleporter am Ende des Zuges verarbeiten
             ProcessTeleporters();
@@ -318,6 +337,12 @@ namespace Dungeon2048.Core.Services
                 GD.Print($"💀 Soul Leech saugt deine Kraft! ATK: {Player.Atk}");
             }
 
+            // Pyromaniac: Explodiert beim Tod
+            if (e.Type == EnemyType.Pyromaniac)
+            {
+                HandlePyromaniacExplosion(e.X, e.Y);
+            }
+
             if (e.IsBoss && Objective is BossObjective bo)
                 bo.BossKilled = true;
         }
@@ -337,6 +362,12 @@ namespace Dungeon2048.Core.Services
             {
                 necro.Hp += 3;
                 necro.HealedThisRound += 3;
+            }
+
+            // Pyromaniac: Explodiert beim Tod (auch wenn von anderem Enemy getötet)
+            if (e.Type == EnemyType.Pyromaniac)
+            {
+                HandlePyromaniacExplosion(e.X, e.Y);
             }
         }
 
@@ -375,6 +406,8 @@ namespace Dungeon2048.Core.Services
             Teleporters.Clear();
             RuneTraps.Clear();
             MagicBarriers.Clear();
+            FireTiles.Clear();
+            FallingRocks.Clear();
             HexCurseTurnsRemaining = 0;
             Door = null;
 
@@ -474,6 +507,240 @@ namespace Dungeon2048.Core.Services
             foreach (var mirror in Enemies.Where(e => e.Type == EnemyType.MirrorKnight))
             {
                 mirror.SyncMirrorKnightStats(Player);
+            }
+        }
+
+        private void ProcessFireTiles()
+        {
+            // Moloch Heilung auf Feuer-Tiles
+            foreach (var enemy in Enemies.Where(e => e.Type == EnemyType.Moloch))
+            {
+                var onFire = FireTiles.Any(f => !f.IsExtinguished && f.X == enemy.X && f.Y == enemy.Y);
+                enemy.StandingOnFire = onFire;
+
+                if (onFire)
+                {
+                    enemy.HealOnFire(5); // Heilt 5 HP pro Zug auf Feuer
+                }
+            }
+
+            // Feuer-Tiles die gelöscht sind entfernen
+            FireTiles.RemoveAll(f => f.IsExtinguished);
+        }
+
+        /// <summary>
+        /// Zählt Warning-Timer runter, markiert Felsen als bereit zu fallen
+        /// Wird während RegisterSwipe() aufgerufen
+        /// </summary>
+        private void AdvanceFallingRocks()
+        {
+            foreach (var rock in FallingRocks.Where(r => r.IsWarning).ToList())
+            {
+                rock.AdvanceTurn();
+            }
+        }
+
+        /// <summary>
+        /// Verursacht Schaden durch fallende Felsen
+        /// Wird NACH Combat in GameBoard.cs aufgerufen
+        /// </summary>
+        public void ProcessFallingRockDamage()
+        {
+            var rocksToFall = FallingRocks.Where(r => r.ShouldFall).ToList();
+
+            foreach (var rock in rocksToFall)
+            {
+                rock.Fall();
+
+                // Schaden an Player wenn auf finaler Position
+                if (Player.X == rock.X && Player.Y == rock.Y)
+                {
+                    Player.Hp -= FallingRock.FallDamage;
+                    GD.Print($"💥 Fels fällt auf dich! {FallingRock.FallDamage} Schaden!");
+                }
+
+                // Schaden an Enemies auf finaler Position
+                var enemiesHit = Enemies.Where(e => e.X == rock.X && e.Y == rock.Y).ToList();
+                foreach (var enemy in enemiesHit)
+                {
+                    enemy.Hp -= FallingRock.FallDamage;
+                    GD.Print($"💥 Fels fällt auf {enemy.DisplayName}! {FallingRock.FallDamage} Schaden!");
+
+                    if (enemy.Hp <= 0)
+                    {
+                        RegisterPlayerKill(enemy);
+                        int xp = Player.CalculateXpReward(enemy.Type, enemy.EnemyLevel, enemy.IsBoss);
+                        Player.GainExperience(xp);
+                        GD.Print($"💎 +{xp} XP (Tod durch Felsen)");
+                        Enemies.Remove(enemy);
+                    }
+                }
+
+                // Rock entfernen nachdem er gefallen ist
+                FallingRocks.Remove(rock);
+            }
+        }
+
+        /// <summary>
+        /// Prüft ob Entities auf Fire Tiles stehen und wendet Burning an
+        /// Wird am Ende von RegisterSwipe() aufgerufen
+        /// </summary>
+        private void ApplyBurningToEntitiesOnFire()
+        {
+            // Prüfe alle Enemies
+            foreach (var enemy in Enemies)
+            {
+                var fireTile = FireTiles.FirstOrDefault(f => f.X == enemy.X && f.Y == enemy.Y && !f.IsExtinguished);
+                if (fireTile != null)
+                {
+                    // Spezialbehandlung für Moloch (immun gegen Feuer)
+                    if (enemy.Type == EnemyType.Moloch)
+                    {
+                        enemy.StandingOnFire = true;
+                        continue;
+                    }
+
+                    // Spezialbehandlung für Obsidian Warrior (absorbiert Feuer)
+                    if (enemy.Type == EnemyType.ObsidianWarrior)
+                    {
+                        continue;
+                    }
+
+                    // Normale Enemies bekommen Burning
+                    enemy.BurningStacks++;
+                    enemy.BurningTurnsRemaining = 2;
+                    GD.Print($"🔥 {enemy.DisplayName} beendet Zug auf Lava! Burning: {enemy.BurningStacks} Stacks");
+                }
+                else
+                {
+                    enemy.StandingOnFire = false;
+                }
+            }
+
+            // Prüfe Player
+            var playerFireTile = FireTiles.FirstOrDefault(f => f.X == Player.X && f.Y == Player.Y && !f.IsExtinguished);
+            if (playerFireTile != null)
+            {
+                Player.BurningStacks++;
+                Player.BurningTurnsRemaining = 2;
+                GD.Print($"🔥 Spieler beendet Zug auf Lava! Burning: {Player.BurningStacks} Stacks");
+            }
+        }
+
+        public void HandleFireGiantMechanics()
+        {
+            var fireGiant = Enemies.FirstOrDefault(e => e.Type == EnemyType.FireGiant && e.IsBoss);
+            if (fireGiant == null) return;
+
+            // Alle 4 Swipes: Hammer-Schlag (Diagonal-Kreuz-Pattern wird zu Feuer)
+            if (TotalSwipes % 4 == 0)
+            {
+                // Diagonal cross pattern: 4 diagonale Richtungen
+                var diagonals = new[] {
+                    (1, 1),   // Unten-Rechts
+                    (1, -1),  // Oben-Rechts
+                    (-1, 1),  // Unten-Links
+                    (-1, -1)  // Oben-Links
+                };
+
+                GD.Print("🔥🔨 FEUERGIGANT schwingt seinen Hammer! 🔨🔥");
+
+                foreach (var (dx, dy) in diagonals)
+                {
+                    for (int dist = 1; dist <= 2; dist++) // 2 Tiles weit
+                    {
+                        int targetX = fireGiant.X + (dx * dist);
+                        int targetY = fireGiant.Y + (dy * dist);
+
+                        // Bounds check
+                        if (targetX < 0 || targetX >= GridSize || targetY < 0 || targetY >= GridSize)
+                            continue;
+
+                        // Spawn Feuer-Tile
+                        if (!FireTiles.Any(f => f.X == targetX && f.Y == targetY))
+                        {
+                            FireTiles.Add(new FireTile(targetX, targetY));
+                            GD.Print($"🔥 Hammer-Schlag erzeugt Lava bei ({targetX},{targetY})");
+                        }
+                    }
+                }
+            }
+
+            // Phase 2: Bei 50% HP spawne Feuer-Elementare
+            if (!fireGiant.IsPhase2 && fireGiant.Hp <= fireGiant.MaxHp / 2)
+            {
+                fireGiant.IsPhase2 = true;
+                SpawnFireGiantElementals();
+            }
+        }
+
+        private void SpawnFireGiantElementals()
+        {
+            GD.Print("🔥🔥 FEUERGIGANT PHASE 2! Er beschwört Feuer-Elementare! 🔥🔥");
+
+            // Spawne 3 Feuer-Elementare
+            for (int i = 0; i < 3; i++)
+            {
+                var pos = RandomFreeCell();
+                var elemental = EnemyRegistry.Get(EnemyType.FireElemental).Create(pos.X, pos.Y, CalculateEnemyLevel() + 2);
+
+                // Biome Modifiers
+                var biome = BiomeSystem.CurrentBiome;
+                elemental.Hp = (int)(elemental.Hp * biome.EnemyHealthMultiplier);
+                elemental.Atk = (int)(elemental.Atk * biome.EnemyDamageMultiplier);
+
+                Enemies.Add(elemental);
+            }
+        }
+
+        private void HandlePyromaniacExplosion(int x, int y)
+        {
+            const int explosionDamage = 10;
+            GD.Print($"💥 PYROMANIAC EXPLODIERT! ({x},{y})");
+
+            // Schaden an allen Entities in 1-Tile-Radius (inkl. diagonal)
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                for (int dy = -1; dy <= 1; dy++)
+                {
+                    if (dx == 0 && dy == 0) continue; // Nicht die Explosion-Position selbst
+
+                    int targetX = x + dx;
+                    int targetY = y + dy;
+
+                    // Bounds check
+                    if (targetX < 0 || targetX >= GridSize || targetY < 0 || targetY >= GridSize)
+                        continue;
+
+                    // Schaden an Player
+                    if (Player.X == targetX && Player.Y == targetY)
+                    {
+                        Player.Hp -= explosionDamage;
+                        GD.Print($"💥 Explosion trifft Spieler! {explosionDamage} Schaden!");
+                    }
+
+                    // Schaden an Enemies
+                    var enemiesHit = Enemies.Where(e => e.X == targetX && e.Y == targetY).ToList();
+                    foreach (var enemy in enemiesHit)
+                    {
+                        enemy.Hp -= explosionDamage;
+                        GD.Print($"💥 Explosion trifft {enemy.DisplayName}! {explosionDamage} Schaden!");
+
+                        // Tote Enemies entfernen
+                        if (enemy.Hp <= 0)
+                        {
+                            RegisterEnemyKill(enemy);
+                            Enemies.Remove(enemy);
+                        }
+                    }
+                }
+            }
+
+            // Feuer-Tile an Explosions-Position spawnen
+            if (!FireTiles.Any(f => f.X == x && f.Y == y))
+            {
+                FireTiles.Add(new FireTile(x, y));
+                GD.Print($"🔥 Explosion hinterlässt Feuer bei ({x},{y})");
             }
         }
 

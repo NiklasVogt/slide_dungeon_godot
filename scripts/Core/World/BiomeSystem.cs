@@ -24,9 +24,11 @@ namespace Dungeon2048.Core.World
 
             var forgottenHalls = new ForgottenHallsBiome();
             _biomes[BiomeType.ForgottenHalls] = forgottenHalls;
-            
+
+            var volcanForge = new VolcanForgeBiome();
+            _biomes[BiomeType.VolcanForge] = volcanForge;
+
             // Weitere Biome später
-            // _biomes[BiomeType.ForgottenHalls] = new ForgottenHallsBiome();
         }
 
         public IBiome CurrentBiome => _currentBiome;
