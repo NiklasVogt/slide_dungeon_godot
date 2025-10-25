@@ -190,6 +190,17 @@ namespace Dungeon2048.Nodes
                 _ctx.Player.Hp -= damage;
                 GD.Print($"🔥 Du nimmst {damage} Feuerschaden! ({_ctx.Player.BurningStacks} Stacks)");
             }
+
+            // Decay Player Burning Duration
+            if (_ctx.Player.BurningTurnsRemaining > 0)
+            {
+                _ctx.Player.BurningTurnsRemaining--;
+                if (_ctx.Player.BurningTurnsRemaining == 0)
+                {
+                    _ctx.Player.BurningStacks = 0;
+                    GD.Print("✨ Spieler: Burning-Effekt ist abgelaufen.");
+                }
+            }
         }
 
         private void LogGameStart()

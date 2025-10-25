@@ -133,6 +133,7 @@ namespace Dungeon2048.Core.Services
             ProcessFireTiles();
             AdvanceFallingRocks();
             HandleFireGiantMechanics();
+            ApplyBurningToEntitiesOnFire();
 
             // NEU: Teleporter am Ende des Zuges verarbeiten
             ProcessTeleporters();
@@ -578,6 +579,52 @@ namespace Dungeon2048.Core.Services
 
                 // Rock entfernen nachdem er gefallen ist
                 FallingRocks.Remove(rock);
+            }
+        }
+
+        /// <summary>
+        /// Prüft ob Entities auf Fire Tiles stehen und wendet Burning an
+        /// Wird am Ende von RegisterSwipe() aufgerufen
+        /// </summary>
+        private void ApplyBurningToEntitiesOnFire()
+        {
+            // Prüfe alle Enemies
+            foreach (var enemy in Enemies)
+            {
+                var fireTile = FireTiles.FirstOrDefault(f => f.X == enemy.X && f.Y == enemy.Y && !f.IsExtinguished);
+                if (fireTile != null)
+                {
+                    // Spezialbehandlung für Moloch (immun gegen Feuer)
+                    if (enemy.Type == EnemyType.Moloch)
+                    {
+                        enemy.StandingOnFire = true;
+                        continue;
+                    }
+
+                    // Spezialbehandlung für Obsidian Warrior (absorbiert Feuer)
+                    if (enemy.Type == EnemyType.ObsidianWarrior)
+                    {
+                        continue;
+                    }
+
+                    // Normale Enemies bekommen Burning
+                    enemy.BurningStacks++;
+                    enemy.BurningTurnsRemaining = 2;
+                    GD.Print($"🔥 {enemy.DisplayName} beendet Zug auf Lava! Burning: {enemy.BurningStacks} Stacks");
+                }
+                else
+                {
+                    enemy.StandingOnFire = false;
+                }
+            }
+
+            // Prüfe Player
+            var playerFireTile = FireTiles.FirstOrDefault(f => f.X == Player.X && f.Y == Player.Y && !f.IsExtinguished);
+            if (playerFireTile != null)
+            {
+                Player.BurningStacks++;
+                Player.BurningTurnsRemaining = 2;
+                GD.Print($"🔥 Spieler beendet Zug auf Lava! Burning: {Player.BurningStacks} Stacks");
             }
         }
 

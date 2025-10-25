@@ -80,6 +80,7 @@ namespace Dungeon2048.Core.Entities
 
         // Akt 3: Vulkanschmiede Status Effects & Mechanics
         public int BurningStacks = 0;              // Burning: Stapelbarer Schaden über Zeit
+        public int BurningTurnsRemaining = 0;      // Burning: Verschwindet nach 2 Zügen
         public int GolemMoveCounter = 0;           // Schmied-Golem: Bewegt sich nur jeden 3. Zug
         public bool StandingOnFire = false;        // Moloch: Tracking für Heilung auf Lava
         public int ForgeBuffStacks = 0;            // Forge Master: Wie oft wurde dieser Gegner gebuffed
@@ -464,6 +465,17 @@ public bool CanAttack()
                 FrozenTurnsRemaining--;
 
             // BURNING DAMAGE ENTFERNT - wird jetzt nach Combat in GameBoard.ProcessBurningDamage() berechnet
+
+            // Burning Duration - Verschwindet nach 2 Zügen
+            if (BurningTurnsRemaining > 0)
+            {
+                BurningTurnsRemaining--;
+                if (BurningTurnsRemaining == 0)
+                {
+                    BurningStacks = 0;
+                    Godot.GD.Print($"{DisplayName}: Burning-Effekt ist abgelaufen.");
+                }
+            }
 
             // Schmied-Golem Counter inkrementieren jeden Zug
             // (wird in MovementPipeline auf 0 gesetzt nach Angriff)

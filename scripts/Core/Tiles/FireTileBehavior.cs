@@ -40,15 +40,17 @@ namespace Dungeon2048.Core.Tiles
                 entity.Hp -= FireTile.BurningDamage;
                 GD.Print($"{GetEntityName(entity)} betritt Feuer! {FireTile.BurningDamage} Schaden!");
 
-                // Burning Status hinzufügen
+                // Burning Status hinzufügen (2 Züge Duration)
                 if (entity is Entities.Enemy e)
                 {
                     e.BurningStacks++;
+                    e.BurningTurnsRemaining = 2;
                     GD.Print($"{e.DisplayName} brennt jetzt! ({e.BurningStacks} Stacks)");
                 }
                 else if (entity is Entities.Player player)
                 {
                     player.BurningStacks++;
+                    player.BurningTurnsRemaining = 2;
                     GD.Print($"Spieler brennt jetzt! ({player.BurningStacks} Stacks)");
                 }
             }

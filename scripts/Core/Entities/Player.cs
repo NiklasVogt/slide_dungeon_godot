@@ -13,6 +13,7 @@ namespace Dungeon2048.Core.Entities
 
         // Akt 3: Burning Status
         public int BurningStacks = 0;
+        public int BurningTurnsRemaining = 0;      // Verschwindet nach 2 Zügen
 
         public const int BaseHp = 20;
         public const int BaseAtk = 5;
