@@ -174,7 +174,7 @@ namespace Dungeon2048.Nodes
             foreach (var enemy in deadEnemies)
             {
                 _ctx.RegisterPlayerKill(enemy);
-                int xp = Core.Entities.Player.CalculateXpReward(enemy.Type, enemy.Level, enemy.IsBoss);
+                int xp = Core.Entities.Player.CalculateXpReward(enemy.Type, enemy.EnemyLevel, enemy.IsBoss);
                 _ctx.Player.GainExperience(xp);
                 GD.Print($"💎 +{xp} XP (Tod durch Feuer)");
                 _ctx.Enemies.Remove(enemy);
