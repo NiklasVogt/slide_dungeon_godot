@@ -149,7 +149,7 @@ namespace Dungeon2048.Nodes
             var name = "Player";
             string badge = GetPlayerBadge(ctx.Player);
             var node = GetOrCreateEntityNode(name, 8, Colors.SkyBlue, ctx.Player.Hp,
-                showBadge: badge != null, badgeText: badge, displayName: "Spieler");
+                showBadge: true, badgeText: badge ?? "", displayName: "Spieler");
             SlideNodeTo(node, _layout.MapToLocal(new Vector2I(ctx.Player.X, ctx.Player.Y)));
             UpdateEntityNodeVisuals(name, ctx.Player.Hp, badge, displayName: "Spieler");
         }

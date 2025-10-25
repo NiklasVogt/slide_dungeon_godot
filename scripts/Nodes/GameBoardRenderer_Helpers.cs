@@ -83,13 +83,18 @@ namespace Dungeon2048.Nodes
             var hpLbl = wrap.GetNodeOrNull<Label>("HP");
             if (hpLbl != null) hpLbl.Text = hp.ToString();
 
-            if (badgeText != null)
+            var badge = wrap.GetNodeOrNull<Label>("Badge");
+            if (badge != null)
             {
-                var badge = wrap.GetNodeOrNull<Label>("Badge");
-                if (badge != null)
+                if (!string.IsNullOrEmpty(badgeText))
                 {
                     badge.Text = badgeText;
+                    badge.Visible = true;
                     badge.Position = new Vector2(_layout.TileSize - 22, 2);
+                }
+                else
+                {
+                    badge.Visible = false;
                 }
             }
             

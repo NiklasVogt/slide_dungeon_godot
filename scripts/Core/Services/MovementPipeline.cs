@@ -87,13 +87,31 @@ namespace Dungeon2048.Core.Services
             }
         }
 
+        private static void SweepEnterForEntity(GameContext ctx, EntityBase entity, int startX, int startY, int endX, int endY, int dx, int dy)
+        {
+            int x = startX, y = startY;
+            while (x != endX || y != endY)
+            {
+                x += dx; y += dy;
+                TileRegistry.Enter(entity, ctx, x, y);
+            }
+        }
+
         private static void ResolveAfterMove(GameContext ctx, EventBus bus, EntityBase moved, int dx, int dy, HashSet<string> occupied, int startX, int startY)
         {
             TileRegistry.Enter(moved, ctx, moved.X, moved.Y);
 
-            if (moved is Player pl && (moved.X != startX || moved.Y != startY) && (dx != 0 || dy != 0))
+            // Alle Entities sollen OnEnter für durchquerte Zellen bekommen
+            if ((moved.X != startX || moved.Y != startY) && (dx != 0 || dy != 0))
             {
-                SweepEnterForPlayer(ctx, pl, startX, startY, moved.X, moved.Y, dx, dy);
+                if (moved is Player pl)
+                {
+                    SweepEnterForPlayer(ctx, pl, startX, startY, moved.X, moved.Y, dx, dy);
+                }
+                else
+                {
+                    SweepEnterForEntity(ctx, moved, startX, startY, moved.X, moved.Y, dx, dy);
+                }
             }
 
             int tx = moved.X + dx, ty = moved.Y + dy;
