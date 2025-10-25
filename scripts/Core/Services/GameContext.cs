@@ -131,7 +131,7 @@ namespace Dungeon2048.Core.Services
             UpdateMirrorKnights();
             AgeBonePiles();
             ProcessFireTiles();
-            ProcessFallingRocks();
+            AdvanceFallingRocks();
             HandleFireGiantMechanics();
 
             // NEU: Teleporter am Ende des Zuges verarbeiten
@@ -528,46 +528,56 @@ namespace Dungeon2048.Core.Services
             FireTiles.RemoveAll(f => f.IsExtinguished);
         }
 
-        private void ProcessFallingRocks()
+        /// <summary>
+        /// Zählt Warning-Timer runter, markiert Felsen als bereit zu fallen
+        /// Wird während RegisterSwipe() aufgerufen
+        /// </summary>
+        private void AdvanceFallingRocks()
         {
-            var rocksToProcess = FallingRocks.ToList();
-
-            foreach (var rock in rocksToProcess)
+            foreach (var rock in FallingRocks.Where(r => r.IsWarning).ToList())
             {
-                // Wenn noch Warnung läuft, zähle runter
-                if (rock.IsWarning)
+                rock.AdvanceTurn();
+            }
+        }
+
+        /// <summary>
+        /// Verursacht Schaden durch fallende Felsen
+        /// Wird NACH Combat in GameBoard.cs aufgerufen
+        /// </summary>
+        public void ProcessFallingRockDamage()
+        {
+            var rocksToFall = FallingRocks.Where(r => r.ShouldFall).ToList();
+
+            foreach (var rock in rocksToFall)
+            {
+                rock.Fall();
+
+                // Schaden an Player wenn auf finaler Position
+                if (Player.X == rock.X && Player.Y == rock.Y)
                 {
-                    rock.AdvanceTurn();
+                    Player.Hp -= FallingRock.FallDamage;
+                    GD.Print($"💥 Fels fällt auf dich! {FallingRock.FallDamage} Schaden!");
                 }
-                // Wenn bereit zu fallen, verursache Schaden
-                else if (rock.ShouldFall)
+
+                // Schaden an Enemies auf finaler Position
+                var enemiesHit = Enemies.Where(e => e.X == rock.X && e.Y == rock.Y).ToList();
+                foreach (var enemy in enemiesHit)
                 {
-                    rock.Fall();
+                    enemy.Hp -= FallingRock.FallDamage;
+                    GD.Print($"💥 Fels fällt auf {enemy.DisplayName}! {FallingRock.FallDamage} Schaden!");
 
-                    // Schaden an Player wenn auf Position
-                    if (Player.X == rock.X && Player.Y == rock.Y)
+                    if (enemy.Hp <= 0)
                     {
-                        Player.Hp -= FallingRock.FallDamage;
-                        GD.Print($"💥 Fels fällt auf dich! {FallingRock.FallDamage} Schaden!");
+                        RegisterPlayerKill(enemy);
+                        int xp = Player.CalculateXpReward(enemy.Type, enemy.EnemyLevel, enemy.IsBoss);
+                        Player.GainExperience(xp);
+                        GD.Print($"💎 +{xp} XP (Tod durch Felsen)");
+                        Enemies.Remove(enemy);
                     }
-
-                    // Schaden an Enemies auf Position
-                    var enemiesHit = Enemies.Where(e => e.X == rock.X && e.Y == rock.Y).ToList();
-                    foreach (var enemy in enemiesHit)
-                    {
-                        enemy.Hp -= FallingRock.FallDamage;
-                        GD.Print($"💥 Fels fällt auf {enemy.DisplayName}! {FallingRock.FallDamage} Schaden!");
-
-                        if (enemy.Hp <= 0)
-                        {
-                            RegisterEnemyKill(enemy);
-                            Enemies.Remove(enemy);
-                        }
-                    }
-
-                    // Rock entfernen nachdem er gefallen ist
-                    FallingRocks.Remove(rock);
                 }
+
+                // Rock entfernen nachdem er gefallen ist
+                FallingRocks.Remove(rock);
             }
         }
 

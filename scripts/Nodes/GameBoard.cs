@@ -128,6 +128,9 @@ namespace Dungeon2048.Nodes
             // Process Burning Damage (after combat)
             ProcessBurningDamage();
 
+            // Process Falling Rock Damage (after all entities reached final position)
+            _ctx.ProcessFallingRockDamage();
+
             // Spawns
             SpawnService.NextTickSpawns(_ctx);
             _renderer.SyncScene(_ctx, UI);

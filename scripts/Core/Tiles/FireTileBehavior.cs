@@ -48,8 +48,8 @@ namespace Dungeon2048.Core.Tiles
                 }
                 else if (entity is Entities.Player player)
                 {
-                    // TODO: Player Burning wenn implementiert
-                    GD.Print("Spieler brennt!");
+                    player.BurningStacks++;
+                    GD.Print($"Spieler brennt jetzt! ({player.BurningStacks} Stacks)");
                 }
             }
         }
