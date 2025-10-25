@@ -471,14 +471,12 @@ public bool CanAttack()
                 Godot.GD.Print($"{DisplayName} nimmt {burnDamage} Burning-Schaden! ({BurningStacks} Stacks)");
             }
 
-            // Schmied-Golem Counter inkrementieren und bei 3 zurücksetzen
+            // Schmied-Golem Counter inkrementieren jeden Zug
+            // (wird in MovementPipeline auf 0 gesetzt nach Angriff)
             if (Type == EnemyType.SchmiedGolem)
             {
                 GolemMoveCounter++;
-                if (GolemMoveCounter > 3)
-                {
-                    GolemMoveCounter = 1; // Zurück zu 1, nicht 0
-                }
+                Godot.GD.Print($"🔨 Schmied-Golem Counter: {GolemMoveCounter}/3");
             }
         }
         

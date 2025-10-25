@@ -114,6 +114,18 @@ namespace Dungeon2048.Core.Services
                 }
             }
 
+            // Akt 3: 30% Chance pro Swipe für Falling Rock
+            if (BiomeSystem.CurrentBiome?.Type == World.BiomeType.VolcanForge)
+            {
+                if (Rng.NextDouble() < 0.30) // 30% Chance
+                {
+                    if (BiomeSystem.CurrentBiome is World.VolcanForgeBiome vfb)
+                    {
+                        vfb.SpawnFallingRock(this);
+                    }
+                }
+            }
+
             RegenerateMagicBarriers();
             HandleLichTeleport();
             UpdateMirrorKnights();

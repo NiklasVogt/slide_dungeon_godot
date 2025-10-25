@@ -63,9 +63,8 @@ namespace Dungeon2048.Core.World
             int fireCount = ctx.Rng.Next(2, 5);
             SpawnFireTiles(ctx, fireCount);
 
-            // 1-2 Falling Rock Hazards pro Level
-            int rockCount = ctx.Rng.Next(1, 3);
-            SpawnFallingRocks(ctx, rockCount);
+            // GEÄNDERT: Keine initialen Falling Rocks mehr
+            // Stattdessen 30% Chance pro Swipe in GameContext.RegisterSwipe()
         }
 
         public void OnLevelComplete(GameContext ctx)
@@ -96,16 +95,12 @@ namespace Dungeon2048.Core.World
             }
         }
 
-        private void SpawnFallingRocks(GameContext ctx, int count)
+        public void SpawnFallingRock(GameContext ctx)
         {
-            GD.Print($"🪨 Spawne {count} fallende Felsen-Warnungen");
-
-            for (int i = 0; i < count; i++)
-            {
-                var pos = ctx.RandomFreeCell();
-                // Warnung 1 Zug vorher
-                ctx.FallingRocks.Add(new FallingRock(pos.X, pos.Y, warningTurnsRemaining: 1));
-            }
+            // Öffentliche Methode für dynamisches Spawnen während des Spiels
+            var pos = ctx.RandomFreeCell();
+            ctx.FallingRocks.Add(new FallingRock(pos.X, pos.Y, warningTurnsRemaining: 1));
+            GD.Print($"🪨 Fallender Fels erscheint bei ({pos.X},{pos.Y})!");
         }
     }
 }

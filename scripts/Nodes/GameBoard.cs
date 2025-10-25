@@ -105,6 +105,12 @@ namespace Dungeon2048.Nodes
             // Movement
             var attackEvents = await MovementPipeline.Move(_ctx, dir.X, dir.Y);
 
+            // Reset Turn Counters for all enemies (wichtig für Schmied-Golem, Burning, etc.)
+            foreach (var enemy in _ctx.Enemies)
+            {
+                enemy.ResetTurnCounters();
+            }
+
             // Animations
             _renderer.AnimateEntities(_ctx);
             await ToSignal(GetTree().CreateTimer(0.12f), SceneTreeTimer.SignalName.Timeout);

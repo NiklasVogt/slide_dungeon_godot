@@ -446,17 +446,21 @@ namespace Dungeon2048.Core.Services
 
                 ResolveAfterMove(ctx, bus, entity, dx, dy, occupied, startX, startY);
 
-                // Fire Elemental: Hinterlässt Feuer auf vorheriger Position
+                // Fire Elemental: Hinterlässt Feuer auf vorheriger Position (40% Chance)
                 if (entity is Enemy fireElem && fireElem.Type == EnemyType.FireElemental)
                 {
                     // Nur wenn sich der Enemy bewegt hat
                     if (fireElem.X != startX || fireElem.Y != startY)
                     {
-                        // Prüfe ob schon ein Feuer dort ist
-                        if (!ctx.FireTiles.Any(f => f.X == startX && f.Y == startY))
+                        // 40% Chance, Lava zu hinterlassen
+                        if (ctx.Rng.NextDouble() < 0.40)
                         {
-                            ctx.FireTiles.Add(new FireTile(startX, startY));
-                            GD.Print($"🔥 Feuer-Elementar hinterlässt Lava bei ({startX},{startY})");
+                            // Prüfe ob schon ein Feuer dort ist
+                            if (!ctx.FireTiles.Any(f => f.X == startX && f.Y == startY))
+                            {
+                                ctx.FireTiles.Add(new FireTile(startX, startY));
+                                GD.Print($"🔥 Feuer-Elementar hinterlässt Lava bei ({startX},{startY})");
+                            }
                         }
                     }
                 }
