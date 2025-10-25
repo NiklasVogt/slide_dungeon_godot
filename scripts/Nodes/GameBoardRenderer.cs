@@ -147,9 +147,11 @@ namespace Dungeon2048.Nodes
         private void AnimatePlayer(GameContext ctx)
         {
             var name = "Player";
-            var node = GetOrCreateEntityNode(name, 8, Colors.SkyBlue, ctx.Player.Hp, displayName: "Spieler");
+            string badge = GetPlayerBadge(ctx.Player);
+            var node = GetOrCreateEntityNode(name, 8, Colors.SkyBlue, ctx.Player.Hp,
+                showBadge: badge != null, badgeText: badge, displayName: "Spieler");
             SlideNodeTo(node, _layout.MapToLocal(new Vector2I(ctx.Player.X, ctx.Player.Y)));
-            UpdateEntityNodeVisuals(name, ctx.Player.Hp, displayName: "Spieler");
+            UpdateEntityNodeVisuals(name, ctx.Player.Hp, badge, displayName: "Spieler");
         }
 
         private void AnimateEnemies(GameContext ctx)

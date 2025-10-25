@@ -125,6 +125,9 @@ namespace Dungeon2048.Nodes
             await ToSignal(GetTree().CreateTimer(0.12f), SceneTreeTimer.SignalName.Timeout);
             await ToSignal(GetTree().CreateTimer(0.18f), SceneTreeTimer.SignalName.Timeout);
 
+            // Process Burning Damage (after combat)
+            ProcessBurningDamage();
+
             // Spawns
             SpawnService.NextTickSpawns(_ctx);
             _renderer.SyncScene(_ctx, UI);
@@ -144,6 +147,46 @@ namespace Dungeon2048.Nodes
             Core.Spells.SpellRegistry.UseSpellSlot(_ctx.Player, index, _ctx);
             SpawnService.NextTickSpawns(_ctx);
             _renderer.SyncScene(_ctx, UI);
+        }
+
+        private void ProcessBurningDamage()
+        {
+            // Process Burning damage on all enemies
+            var deadEnemies = new System.Collections.Generic.List<Core.Entities.Enemy>();
+
+            foreach (var enemy in _ctx.Enemies)
+            {
+                if (enemy.BurningStacks > 0)
+                {
+                    int damage = Core.Tiles.FireTile.BurningDamage * enemy.BurningStacks;
+                    enemy.Hp -= damage;
+                    GD.Print($"🔥 {enemy.Type} nimmt {damage} Feuerschaden! ({enemy.BurningStacks} Stacks)");
+
+                    if (enemy.Hp <= 0)
+                    {
+                        GD.Print($"🔥💀 {enemy.Type} stirbt an Feuerschaden!");
+                        deadEnemies.Add(enemy);
+                    }
+                }
+            }
+
+            // Remove dead enemies and grant XP
+            foreach (var enemy in deadEnemies)
+            {
+                _ctx.RegisterPlayerKill(enemy);
+                int xp = Core.Entities.Player.CalculateXpReward(enemy.Type, enemy.Level, enemy.IsBoss);
+                _ctx.Player.GainExperience(xp);
+                GD.Print($"💎 +{xp} XP (Tod durch Feuer)");
+                _ctx.Enemies.Remove(enemy);
+            }
+
+            // Process Burning damage on Player
+            if (_ctx.Player.BurningStacks > 0)
+            {
+                int damage = Core.Tiles.FireTile.BurningDamage * _ctx.Player.BurningStacks;
+                _ctx.Player.Hp -= damage;
+                GD.Print($"🔥 Du nimmst {damage} Feuerschaden! ({_ctx.Player.BurningStacks} Stacks)");
+            }
         }
 
         private void LogGameStart()

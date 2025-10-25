@@ -11,6 +11,9 @@ namespace Dungeon2048.Core.Entities
         public int Experience = 0;
         public int MaxHp = 20;
 
+        // Akt 3: Burning Status
+        public int BurningStacks = 0;
+
         public const int BaseHp = 20;
         public const int BaseAtk = 5;
         public const int MaxSpells = 3;

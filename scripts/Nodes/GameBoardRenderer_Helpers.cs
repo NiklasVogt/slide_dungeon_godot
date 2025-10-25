@@ -209,6 +209,15 @@ namespace Dungeon2048.Nodes
             return e.EnemyLevel.ToString();
         }
 
+        private string GetPlayerBadge(Player player)
+        {
+            // Burning Status - Zeige Feuer mit Stack Count
+            if (player.BurningStacks > 0)
+                return $"🔥{player.BurningStacks}";
+
+            return null;
+        }
+
         public void AttackFx(string attackerName, string targetName, Vector2I dir)
         {
             if (!_entityNodes.TryGetValue(attackerName, out var attackerNode))

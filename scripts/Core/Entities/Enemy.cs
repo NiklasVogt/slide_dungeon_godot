@@ -463,13 +463,7 @@ public bool CanAttack()
             if (FrozenTurnsRemaining > 0)
                 FrozenTurnsRemaining--;
 
-            // Burning Schaden anwenden und stacken
-            if (BurningStacks > 0)
-            {
-                int burnDamage = BurningStacks * 2; // 2 Schaden pro Stack
-                Hp -= burnDamage;
-                Godot.GD.Print($"{DisplayName} nimmt {burnDamage} Burning-Schaden! ({BurningStacks} Stacks)");
-            }
+            // BURNING DAMAGE ENTFERNT - wird jetzt nach Combat in GameBoard.ProcessBurningDamage() berechnet
 
             // Schmied-Golem Counter inkrementieren jeden Zug
             // (wird in MovementPipeline auf 0 gesetzt nach Angriff)
