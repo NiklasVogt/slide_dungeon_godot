@@ -79,6 +79,32 @@ namespace Dungeon2048.Nodes
                 _gameBoard.DrawRect(tileRect, fireGlow);
             }
 
+            // Campfires - Warmes Orange Glühen
+            foreach (var campfire in ctx.CampfireTiles)
+            {
+                if (campfire.IsExtinguished) continue;
+
+                var tilePos = new Vector2(origin.X + campfire.X * ts, origin.Y + campfire.Y * ts);
+                var tileRect = new Rect2(tilePos, new Vector2(ts, ts));
+
+                // Warmes Orange Glühen
+                var campfireGlow = new Color(1.0f, 0.5f, 0.0f, 0.35f);
+                _gameBoard.DrawRect(tileRect, campfireGlow);
+            }
+
+            // FrostTorches - Eisblau Glühen
+            foreach (var torch in ctx.FrostTorches)
+            {
+                if (torch.IsExtinguished) continue;
+
+                var tilePos = new Vector2(origin.X + torch.X * ts, origin.Y + torch.Y * ts);
+                var tileRect = new Rect2(tilePos, new Vector2(ts, ts));
+
+                // Eisblau Glühen
+                var torchGlow = new Color(0.6f, 0.8f, 1.0f, 0.3f);
+                _gameBoard.DrawRect(tileRect, torchGlow);
+            }
+
             // Falling Rocks - Warnung und Gefahr
             foreach (var rock in ctx.FallingRocks)
             {
@@ -139,6 +165,8 @@ namespace Dungeon2048.Nodes
             AnimateMagicBarriers(ctx);
             AnimateFireTiles(ctx);
             AnimateFallingRocks(ctx);
+            AnimateCampfires(ctx);
+            AnimateFrostTorches(ctx);
             AnimateDoor(ctx);
 
             PruneMissingNodes(ctx);
@@ -159,13 +187,24 @@ namespace Dungeon2048.Nodes
             foreach (var e in ctx.Enemies)
             {
                 var name = $"Enemy_{e.Id}";
-                
+
                 // Getarnter Mimic wird als Spell-Drop dargestellt
                 if (e.Type == EnemyType.Mimic && e.IsDisguised)
                 {
                     var node = GetOrCreateEntityNode(name, 4, Colors.Gold, 1, displayName: "Zauber");
                     SlideNodeTo(node, _layout.MapToLocal(new Vector2I(e.X, e.Y)));
                     UpdateEntityNodeVisuals(name, 1, null, "Zauber");
+                    continue;
+                }
+
+                // FrostbiteMimic wird als Lagerfeuer dargestellt (bis revealed)
+                if (e.Type == EnemyType.FrostbiteMimic && !e.IsMimicRevealed)
+                {
+                    var campfireColor = new Color(1.0f, 0.5f, 0.0f, 0.9f);
+                    var node = GetOrCreateEntityNode(name, 5, campfireColor, 3,
+                        showBadge: true, badgeText: "3", displayName: "Lagerfeuer");
+                    SlideNodeTo(node, _layout.MapToLocal(new Vector2I(e.X, e.Y)));
+                    UpdateEntityNodeVisuals(name, 3, "3", "Lagerfeuer");
                     continue;
                 }
                 
@@ -356,6 +395,42 @@ namespace Dungeon2048.Nodes
                     SlideNodeTo(node, _layout.MapToLocal(new Vector2I(r.X, r.Y)));
                     UpdateEntityNodeVisuals(name, 1, "💥", "GEFAHR!");
                 }
+            }
+        }
+
+        private void AnimateCampfires(GameContext ctx)
+        {
+            foreach (var c in ctx.CampfireTiles)
+            {
+                if (c.IsExtinguished) continue;
+
+                var name = $"Campfire_{c.Id}";
+
+                // Warmes Orange-Rot für Lagerfeuer
+                var campfireColor = new Color(1.0f, 0.5f, 0.0f, 0.9f); // Warmes Orange
+
+                var node = GetOrCreateEntityNode(name, 5, campfireColor, c.Charges,
+                    showBadge: true, badgeText: $"{c.Charges}", displayName: "Lagerfeuer");
+                SlideNodeTo(node, _layout.MapToLocal(new Vector2I(c.X, c.Y)));
+                UpdateEntityNodeVisuals(name, c.Charges, $"{c.Charges}", "Lagerfeuer");
+            }
+        }
+
+        private void AnimateFrostTorches(GameContext ctx)
+        {
+            foreach (var ft in ctx.FrostTorches)
+            {
+                if (ft.IsExtinguished) continue;
+
+                var name = $"FrostTorch_{ft.Id}";
+
+                // Helles Blau-Weiß für Eisfackeln
+                var torchColor = new Color(0.6f, 0.8f, 1.0f, 0.9f); // Eisblau
+
+                var node = GetOrCreateEntityNode(name, 5, torchColor, 1,
+                    showBadge: true, badgeText: "🔥", displayName: "Fackel");
+                SlideNodeTo(node, _layout.MapToLocal(new Vector2I(ft.X, ft.Y)));
+                UpdateEntityNodeVisuals(name, 1, "🔥", "Fackel");
             }
         }
 

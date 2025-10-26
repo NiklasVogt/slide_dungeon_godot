@@ -190,6 +190,10 @@ namespace Dungeon2048.Nodes
 
         private string GetEnemyBadge(Enemy e)
         {
+            // Frostbite Status hat höchste Priorität für Act 4 (außer Boss und immune)
+            if (e.FrostbiteStacks > 0 && !e.IsBoss && e.FrostbiteResistance < 9999)
+                return $"❄️{e.FrostbiteStacks}";
+
             // Burning Status hat höchste Priorität (außer Boss)
             if (e.BurningStacks > 0 && !e.IsBoss)
                 return $"🔥{e.BurningStacks}";
@@ -216,6 +220,10 @@ namespace Dungeon2048.Nodes
 
         private string GetPlayerBadge(Player player)
         {
+            // Frostbite hat höchste Priorität in Act 4
+            if (player.FrostbiteStacks > 0)
+                return $"❄️{player.FrostbiteStacks}";
+
             // Burning Status - Zeige Feuer mit Stack Count
             if (player.BurningStacks > 0)
                 return $"🔥{player.BurningStacks}";
