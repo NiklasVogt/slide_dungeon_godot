@@ -43,6 +43,7 @@ namespace Dungeon2048.Nodes
 
             // Akt 4 Tiles
             TileRegistry.Register(new CampfireTileBehavior());
+            TileRegistry.Register(new FrostTorchTile());
         }
 
         private static void RegisterEnemies()

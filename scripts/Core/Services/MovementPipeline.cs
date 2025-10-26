@@ -188,6 +188,14 @@ namespace Dungeon2048.Core.Services
                         GD.Print("💀 Das war ein MIMIC! Er greift an!");
                     }
 
+                    // Akt 4: FrostbiteMimic reveal beim ersten Kontakt mit Player
+                    if (target.Type == EnemyType.FrostbiteMimic && !target.IsMimicRevealed)
+                    {
+                        target.IsMimicRevealed = true;
+                        ctx.Player.FrostbiteStacks += 5; // +5 Kälte-Stacks beim Reveal
+                        GD.Print($"💀❄️ Das war ein FROSTBISS-MIMIC! +5 Kälte-Stacks! (jetzt {ctx.Player.FrostbiteStacks})");
+                    }
+
                     bus.AddAttackEvent(new AttackEvent("Player", $"Enemy_{target.Id}", new Vector2I(dx, dy)));
 
                     if (target.Type == EnemyType.Masochist)

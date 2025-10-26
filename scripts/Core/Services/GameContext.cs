@@ -39,6 +39,7 @@ namespace Dungeon2048.Core.Services
         // Tile-Listen für Akt 4: Frostbite System
         public readonly List<CampfireTile> CampfireTiles = new();
         public readonly List<CampfireTile> ExtinguishedCampfires = new(); // Für Respawn-Tracking
+        public readonly List<FrostTorch> FrostTorches = new();
 
         public IObjective Objective = null!;
         public int CurrentLevel = 1;
@@ -435,6 +436,7 @@ namespace Dungeon2048.Core.Services
             FallingRocks.Clear();
             CampfireTiles.Clear();
             ExtinguishedCampfires.Clear();
+            FrostTorches.Clear();
             HexCurseTurnsRemaining = 0;
             AmbientColdTurnCounter = 0;
             FrostwindEventCounter = 0;
@@ -472,6 +474,7 @@ namespace Dungeon2048.Core.Services
             if (Teleporters.Any(t => t.X == x && t.Y == y && t.IsActive)) return false; // Teleporter blockieren nicht
             if (RuneTraps.Any(r => r.X == x && r.Y == y && !r.IsTriggered)) return false; // Fallen blockieren nicht
             if (MagicBarriers.Any(m => m.X == x && m.Y == y && !m.IsDestroyed)) return true;
+            if (FrostTorches.Any(ft => ft.X == x && ft.Y == y && !ft.IsExtinguished)) return false; // FrostTorches blockieren nicht (wie Teleporter)
             return false;
         }
 
@@ -557,8 +560,8 @@ namespace Dungeon2048.Core.Services
                 CampfireTiles.Clear();
                 ExtinguishedCampfires.Clear();
 
-                // Alle Fackeln entfernen (wenn implementiert)
-                Torches.Clear();
+                // Alle Fackeln entfernen
+                FrostTorches.Clear();
             }
 
             // Phase 2: Warm Heart - Spieler bekommt -2 Stacks wenn in Melee-Range

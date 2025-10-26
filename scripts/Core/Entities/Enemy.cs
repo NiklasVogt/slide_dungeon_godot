@@ -381,7 +381,7 @@ public bool CanMove()
 
     // Akt 4: Immobile Gegner
     if (Type == EnemyType.PermafrostLich) return false; // Kälteschatten bewegt sich nie
-    if (Type == EnemyType.FrostbiteMimic && !IsMimicRevealed) return false; // Mimic bewegt sich nur nach Reveal
+    if (Type == EnemyType.FrostbiteMimic) return false; // Mimic bewegt sich nie
 
     // Permafrost Golem bewegt sich nur jeden 3. Zug
     if (Type == EnemyType.GlacialSentinel)

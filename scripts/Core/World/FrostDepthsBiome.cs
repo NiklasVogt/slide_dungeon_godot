@@ -52,21 +52,17 @@ namespace Dungeon2048.Core.World
 
         public void OnLevelStart(GameContext ctx)
         {
-            // Boss-Level: Weniger Lagerfeuer, mehr Herausforderung
+            // Boss-Level: Nur 1 Lagerfeuer und keine Fackeln
             if (ObjectiveService.IsBossLevel(ctx.CurrentLevel))
             {
                 GD.Print("🧊❄️ Das Gefrorene Herz wartet... ❄️🧊");
-                // Boss Arena hat nur 1-2 Lagerfeuer
-                SpawnCampfires(ctx, ctx.Rng.Next(1, 3));
+                SpawnCampfires(ctx, 1);
                 return;
             }
 
-            // Normale Level: 2-3 Lagerfeuer spawnen
-            int campfireCount = ctx.Rng.Next(2, 4);
-            SpawnCampfires(ctx, campfireCount);
-
-            // Optional: 2 Fackeln spawnen (aus dem Konzept - noch zu implementieren)
-            // SpawnTorches(ctx, 2);
+            // Normale Level: 1 Lagerfeuer + 2 Fackeln
+            SpawnCampfires(ctx, 1);
+            SpawnFrostTorches(ctx, 2);
         }
 
         public void OnLevelComplete(GameContext ctx)
@@ -105,6 +101,17 @@ namespace Dungeon2048.Core.World
             {
                 var pos = ctx.RandomFreeCell();
                 ctx.CampfireTiles.Add(new CampfireTile(pos.X, pos.Y));
+            }
+        }
+
+        private void SpawnFrostTorches(GameContext ctx, int count)
+        {
+            GD.Print($"🔥 Spawne {count} Fackeln");
+
+            for (int i = 0; i < count; i++)
+            {
+                var pos = ctx.RandomFreeCell();
+                ctx.FrostTorches.Add(new FrostTorch(pos.X, pos.Y));
             }
         }
 
