@@ -52,6 +52,11 @@ namespace Dungeon2048.Core.World
 
         public void OnLevelStart(GameContext ctx)
         {
+            // WICHTIG: Zuerst alle Act 4 Tiles clearen, um Duplikate zu vermeiden
+            ctx.CampfireTiles.Clear();
+            ctx.ExtinguishedCampfires.Clear();
+            ctx.FrostTorches.Clear();
+
             if (ObjectiveService.IsBossLevel(ctx.CurrentLevel))
             {
                 GD.Print("🧊❄️ Das Gefrorene Herz wartet... ❄️🧊");
@@ -60,6 +65,8 @@ namespace Dungeon2048.Core.World
             // ALLE Level: Genau 1 Lagerfeuer + 2 Fackeln
             SpawnCampfires(ctx, 1);
             SpawnFrostTorches(ctx, 2);
+
+            GD.Print($"✅ Act 4 Tiles gespawnt: {ctx.CampfireTiles.Count} Campfire(s), {ctx.FrostTorches.Count} Torch(es)");
         }
 
         public void OnLevelComplete(GameContext ctx)
