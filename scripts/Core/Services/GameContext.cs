@@ -474,7 +474,11 @@ namespace Dungeon2048.Core.Services
             if (Teleporters.Any(t => t.X == x && t.Y == y && t.IsActive)) return false; // Teleporter blockieren nicht
             if (RuneTraps.Any(r => r.X == x && r.Y == y && !r.IsTriggered)) return false; // Fallen blockieren nicht
             if (MagicBarriers.Any(m => m.X == x && m.Y == y && !m.IsDestroyed)) return true;
-            if (FrostTorches.Any(ft => ft.X == x && ft.Y == y && !ft.IsExtinguished)) return false; // FrostTorches blockieren nicht (wie Teleporter)
+
+            // Akt 4 Tiles - sichtbar auf Grid
+            if (CampfireTiles.Any(c => c.X == x && c.Y == y && !c.IsExtinguished)) return true; // Campfires blockieren und sind sichtbar
+            if (FrostTorches.Any(ft => ft.X == x && ft.Y == y && !ft.IsExtinguished)) return true; // FrostTorches sind sichtbar
+
             return false;
         }
 
