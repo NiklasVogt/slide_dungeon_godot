@@ -52,6 +52,17 @@ namespace Dungeon2048.Core.Spells
                 ctx.Enemies.Remove(ek);
                 player.GainExperience(ek.XpReward);
             }
+
+            // Akt 4: Warmth from fire spells (-2 frostbite stacks)
+            if (ctx.BiomeSystem.CurrentBiome?.Type == World.BiomeType.FrostDepths)
+            {
+                if (player.FrostbiteStacks > 0)
+                {
+                    int removed = Math.Min(player.FrostbiteStacks, 2);
+                    player.FrostbiteStacks -= removed;
+                    Godot.GD.Print($"🔥 Feuermagie wärmt dich! -{removed} Kälte-Stacks (jetzt {player.FrostbiteStacks})");
+                }
+            }
         }
     }
 

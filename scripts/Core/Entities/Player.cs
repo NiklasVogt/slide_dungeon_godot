@@ -15,6 +15,10 @@ namespace Dungeon2048.Core.Entities
         public int BurningStacks = 0;
         public int BurningTurnsRemaining = 0;      // Verschwindet nach 2 Zügen
 
+        // Akt 4: Frostbite Status
+        public int FrostbiteStacks = 0;            // 0-10, bei 10 → Tod
+        public int MovementTilesThisTurn = 0;      // Zählt Tiles für Warmth-Mechanik (alle 5 Tiles -1 Stack)
+
         public const int BaseHp = 20;
         public const int BaseAtk = 5;
         public const int MaxSpells = 3;
@@ -104,6 +108,7 @@ namespace Dungeon2048.Core.Entities
                 EnemyType.Snowblind         => 35,
                 EnemyType.GlacialSentinel   => 38,
                 EnemyType.PermafrostLich    => 45,
+                EnemyType.FrostbiteMimic    => 50,
                 EnemyType.IceDragon         => 200,
                 
                 // Akt 5

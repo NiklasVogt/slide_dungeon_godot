@@ -36,6 +36,10 @@ namespace Dungeon2048.Core.Services
         public readonly List<FireTile> FireTiles = new();
         public readonly List<FallingRock> FallingRocks = new();
 
+        // Tile-Listen für Akt 4: Frostbite System
+        public readonly List<CampfireTile> CampfireTiles = new();
+        public readonly List<CampfireTile> ExtinguishedCampfires = new(); // Für Respawn-Tracking
+
         public IObjective Objective = null!;
         public int CurrentLevel = 1;
         public int TotalSwipes = 0;
@@ -50,6 +54,12 @@ namespace Dungeon2048.Core.Services
 
         // Boss-State
         public int GoblinKingSpawnCounter = 0;
+
+        // === Akt 4: Frostbite System State ===
+        public int AmbientColdTurnCounter = 0;     // Zählt bis 3, dann +1 Stack für alle
+        public int FrostwindEventCounter = 0;      // Zählt bis 10, dann +2 Stack Event
+        public bool IsNightPhase => TotalSwipes >= 30;  // Ab Zug 30: Doppelte Kälte-Rate
+        public int IceDragonPhase2Turn = 0;        // Boss Phase 2 Tracking
 
         public Random Rng = new();
 
@@ -129,6 +139,7 @@ namespace Dungeon2048.Core.Services
             RegenerateMagicBarriers();
             HandleLichTeleport();
             UpdateMirrorKnights();
+            HandleIceDragonMechanics();
             AgeBonePiles();
             ProcessFireTiles();
             AdvanceFallingRocks();
@@ -136,6 +147,9 @@ namespace Dungeon2048.Core.Services
 
             // NEU: Teleporter am Ende des Zuges verarbeiten
             ProcessTeleporters();
+
+            // Akt 4: Frostbite System verarbeiten
+            ProcessFrostbiteSystem();
 
             CheckAndSpawnDoor();
 
@@ -312,6 +326,17 @@ namespace Dungeon2048.Core.Services
             // NEU: Seelen für Kill
             int souls = SoulCurrency.GetSoulReward(e.Type, e.EnemyLevel, e.IsBoss);
             SoulManager.AddSouls(souls);
+
+            // Akt 4: Warmth from combat (killing enemy = -1 frostbite stack)
+            if (BiomeSystem.CurrentBiome?.Type == World.BiomeType.FrostDepths)
+            {
+                if (Player.FrostbiteStacks > 0)
+                {
+                    Player.FrostbiteStacks--;
+                    GD.Print($"🔥 Kampf-Adrenalin wärmt dich! -1 Kälte-Stack (jetzt {Player.FrostbiteStacks})");
+                }
+            }
+
             if (e.Type == EnemyType.HexWitch)
             {
                 HexCurseTurnsRemaining = 5;
@@ -408,7 +433,12 @@ namespace Dungeon2048.Core.Services
             MagicBarriers.Clear();
             FireTiles.Clear();
             FallingRocks.Clear();
+            CampfireTiles.Clear();
+            ExtinguishedCampfires.Clear();
             HexCurseTurnsRemaining = 0;
+            AmbientColdTurnCounter = 0;
+            FrostwindEventCounter = 0;
+            IceDragonPhase2Turn = 0;
             Door = null;
 
             Player.Hp = Player.MaxHp;
@@ -484,6 +514,87 @@ namespace Dungeon2048.Core.Services
             }
         }
 
+        private void HandleIceDragonMechanics()
+        {
+            var iceDragon = Enemies.FirstOrDefault(e => e.Type == EnemyType.IceDragon && e.IsBoss);
+            if (iceDragon == null) return;
+
+            // Alle 4 Züge: "Ewiger Winter" - ALLE Entities +3 Stacks
+            if (TotalSwipes % 4 == 0 && TotalSwipes > 0)
+            {
+                GD.Print("❄️🌨️ EWIGER WINTER! Alle Entities bekommen +3 Kälte-Stacks! 🌨️❄️");
+
+                // Spieler
+                Player.FrostbiteStacks += 3;
+
+                // Alle Gegner (außer Boss selbst und immune)
+                foreach (var enemy in Enemies.Where(e => e.Type != EnemyType.IceDragon
+                    && e.Type != EnemyType.IceShard
+                    && e.Type != EnemyType.GlacialSentinel
+                    && e.Type != EnemyType.Frostbite).ToList())
+                {
+                    enemy.FrostbiteStacks += 3;
+                    if (enemy.FrostbiteStacks > enemy.FrostbiteResistance)
+                        enemy.FrostbiteStacks = enemy.FrostbiteResistance;
+                }
+            }
+
+            // Alle 5 Züge: Spawne Frostbite Wraiths
+            IceDragonPhase2Turn++;
+            if (IceDragonPhase2Turn % 5 == 0)
+            {
+                SpawnIceDragonWraiths();
+            }
+
+            // Phase 2: Bei 50% HP alle Lagerfeuer entfernen, Warm Heart aktivieren
+            if (!iceDragon.IsPhase2 && iceDragon.Hp <= iceDragon.MaxHp / 2)
+            {
+                iceDragon.IsPhase2 = true;
+                GD.Print("❄️💔 PHASE 2: ABSOLUTER NULL! 💔❄️");
+                GD.Print("Alle Wärmequellen verschwinden! Bleib nah beim Boss für das warme Herz!");
+
+                // Alle Lagerfeuer entfernen
+                CampfireTiles.Clear();
+                ExtinguishedCampfires.Clear();
+
+                // Alle Fackeln entfernen (wenn implementiert)
+                Torches.Clear();
+            }
+
+            // Phase 2: Warm Heart - Spieler bekommt -2 Stacks wenn in Melee-Range
+            if (iceDragon.IsPhase2)
+            {
+                int dx = System.Math.Abs(Player.X - iceDragon.X);
+                int dy = System.Math.Abs(Player.Y - iceDragon.Y);
+                bool inMeleeRange = (dx <= 1 && dy <= 1);
+
+                if (inMeleeRange && Player.FrostbiteStacks > 0)
+                {
+                    Player.FrostbiteStacks = System.Math.Max(0, Player.FrostbiteStacks - 2);
+                    GD.Print($"💔🔥 Warmes Herz des Bosses: -2 Kälte-Stacks (jetzt {Player.FrostbiteStacks})");
+                }
+            }
+        }
+
+        private void SpawnIceDragonWraiths()
+        {
+            GD.Print("❄️👻 Das Gefrorene Herz beschwört Frostbiss-Geister! 👻❄️");
+
+            // Spawne 2 Frostbite Wraiths
+            for (int i = 0; i < 2; i++)
+            {
+                var pos = RandomFreeCell();
+                var wraith = EnemyRegistry.Get(EnemyType.Frostbite).Create(pos.X, pos.Y, CalculateEnemyLevel());
+
+                // Biome Modifiers
+                var biome = BiomeSystem.CurrentBiome;
+                wraith.Hp = (int)(wraith.Hp * biome.EnemyHealthMultiplier);
+                wraith.Atk = (int)(wraith.Atk * biome.EnemyDamageMultiplier);
+
+                Enemies.Add(wraith);
+            }
+        }
+
         private void SpawnLichKultists()
         {
             GD.Print("⚡ Der Lich-Magier beschwört Kultisten!");
@@ -526,6 +637,25 @@ namespace Dungeon2048.Core.Services
 
             // Feuer-Tiles die gelöscht sind entfernen
             FireTiles.RemoveAll(f => f.IsExtinguished);
+        }
+
+        private void ProcessFrostbiteSystem()
+        {
+            // Nur in Akt 4 aktiv
+            if (BiomeSystem.CurrentBiome?.Type != World.BiomeType.FrostDepths)
+                return;
+
+            // Wärme von Lagerfeuern anwenden
+            Tiles.CampfireTileBehavior.WarmAdjacentEntities(this);
+
+            // Frostbite-Mechaniken aus FrostDepthsBiome aufrufen
+            if (BiomeSystem.CurrentBiome is World.FrostDepthsBiome frostBiome)
+            {
+                frostBiome.ProcessFrostbiteSystem(this);
+            }
+
+            // Lagerfeuer die erloschen sind entfernen
+            CampfireTiles.RemoveAll(c => c.IsExtinguished && !ExtinguishedCampfires.Contains(c));
         }
 
         /// <summary>

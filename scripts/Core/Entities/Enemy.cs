@@ -37,6 +37,7 @@ namespace Dungeon2048.Core.Entities
         Snowblind,
         GlacialSentinel,
         PermafrostLich,
+        FrostbiteMimic, // Getarnt als Lagerfeuer
         IceDragon,      // Boss
         
         // Akt 5: Der Abgrund (für später)
@@ -84,6 +85,13 @@ namespace Dungeon2048.Core.Entities
         public int GolemMoveCounter = 0;           // Schmied-Golem: Bewegt sich nur jeden 3. Zug
         public bool StandingOnFire = false;        // Moloch: Tracking für Heilung auf Lava
         public int ForgeBuffStacks = 0;            // Forge Master: Wie oft wurde dieser Gegner gebuffed
+
+        // Akt 4: Frostbite Status & Mechanics
+        public int FrostbiteStacks = 0;            // 0-10 (oder weniger für Gegner), bei Max → Tod
+        public int FrostbiteResistance = 10;       // Max Stacks before death (10 for player, varies for enemies)
+        public int GolemAuraMoveCounter = 0;       // Permafrost Golem: Bewegt sich nur jeden 3. Zug
+        public int CampfireDrainCounter = 0;       // Schneewanderer/Blizzard Shaman: Für Lagerfeuer-Drain
+        public bool IsMimicRevealed = false;       // Frostbite Mimic: War es als Lagerfeuer getarnt?
 
         public int MaxHp { get; private set; }
         public Enemy(int x, int y, EnemyType type, int enemyLevel, bool isBoss = false)
@@ -142,6 +150,7 @@ namespace Dungeon2048.Core.Entities
                 EnemyType.Snowblind         => 12,
                 EnemyType.GlacialSentinel   => 45,
                 EnemyType.PermafrostLich    => 20,
+                EnemyType.FrostbiteMimic    => 8,
                 EnemyType.IceDragon         => 90,
                 
                 // Akt 5
@@ -205,6 +214,7 @@ namespace Dungeon2048.Core.Entities
                 EnemyType.Snowblind         => 10,
                 EnemyType.GlacialSentinel   => 0,
                 EnemyType.PermafrostLich    => 6,
+                EnemyType.FrostbiteMimic    => 0,
                 EnemyType.IceDragon         => 20,
                 
                 // Akt 5
@@ -261,6 +271,7 @@ namespace Dungeon2048.Core.Entities
                 EnemyType.Snowblind         => 2.2,
                 EnemyType.GlacialSentinel   => 0.0,
                 EnemyType.PermafrostLich    => 1.7,
+                EnemyType.FrostbiteMimic    => 0.0,
                 EnemyType.IceDragon         => 3.5,
                 
                 // Akt 5
@@ -330,13 +341,14 @@ namespace Dungeon2048.Core.Entities
                     
                     // Akt 4
                     EnemyType.FrostGoblin       => "Frost-Goblin",
-                    EnemyType.Yeti              => "Yeti",
-                    EnemyType.IceShard          => "Eis-Splitter",
-                    EnemyType.Frostbite         => "Frostbiss",
-                    EnemyType.Snowblind         => "Schneeblind",
-                    EnemyType.GlacialSentinel   => "Gletscher-Wächter",
-                    EnemyType.PermafrostLich    => "Permafrost-Lich",
-                    EnemyType.IceDragon         => "Eisdrache",
+                    EnemyType.Yeti              => "Schneewanderer",
+                    EnemyType.IceShard          => "Eiswolf",
+                    EnemyType.Frostbite         => "Frostbiss-Geist",
+                    EnemyType.Snowblind         => "Blizzard-Schamane",
+                    EnemyType.GlacialSentinel   => "Permafrost-Golem",
+                    EnemyType.PermafrostLich    => "Kälteschatten",
+                    EnemyType.FrostbiteMimic    => IsMimicRevealed ? "Frostbiss-Mimic" : "Lagerfeuer",
+                    EnemyType.IceDragon         => "Das Gefrorene Herz",
                     
                     // Akt 5
                     EnemyType.Dragon            => "Drache",
@@ -364,9 +376,24 @@ public bool CanMove()
     if (FrozenTurnsRemaining > 0) return false;
     if (Type == EnemyType.Gargoyle && !HasMoved) return false;
     if (Type == EnemyType.Kultist) return false; // Kultist bewegt sich nie
-    if (Type == EnemyType.GlacialSentinel) return false;
     if (Type == EnemyType.ForgeMaster) return false;
     if (Type == EnemyType.HexWitch) return false; // NEU: Hex Witch bewegt sich langsam/selten
+
+    // Akt 4: Immobile Gegner
+    if (Type == EnemyType.PermafrostLich) return false; // Kälteschatten bewegt sich nie
+    if (Type == EnemyType.FrostbiteMimic && !IsMimicRevealed) return false; // Mimic bewegt sich nur nach Reveal
+
+    // Permafrost Golem bewegt sich nur jeden 3. Zug
+    if (Type == EnemyType.GlacialSentinel)
+    {
+        GolemAuraMoveCounter++;
+        if (GolemAuraMoveCounter >= 3)
+        {
+            GolemAuraMoveCounter = 0;
+            return true;
+        }
+        return false;
+    }
 
     return true;
 }
@@ -433,13 +460,14 @@ public bool CanAttack()
                 EnemyType.ObsidianWarrior   => "Immun gegen Feuer",
                 EnemyType.ForgeMaster       => "Buffet andere Gegner",
                 
-                EnemyType.FrostGoblin       => "Verlangsamt bei Treffer",
-                EnemyType.Yeti              => "Immun gegen Freeze",
-                EnemyType.IceShard          => "Gleitet weiter",
-                EnemyType.Frostbite         => "Vereist Tiles",
-                EnemyType.Snowblind         => "Unsichtbar aus Distanz",
-                EnemyType.GlacialSentinel   => "Blockiert Nachbar-Tiles",
-                EnemyType.PermafrostLich    => "Respawnt nach 3 Zügen",
+                EnemyType.FrostGoblin       => "+1 Kälte-Stack bei Angriff",
+                EnemyType.Yeti              => "Entzieht Lagerfeuer-Ladung",
+                EnemyType.IceShard          => "Immun gegen Kälte",
+                EnemyType.Frostbite         => "+4 Kälte, kein HP-Schaden",
+                EnemyType.Snowblind         => "Drain Lagerfeuer alle 3 Züge",
+                EnemyType.GlacialSentinel   => "Kälte-Aura +1 Stack/Zug",
+                EnemyType.PermafrostLich    => "Kälte-Achsen-Projektion",
+                EnemyType.FrostbiteMimic    => "Getarnt als Lagerfeuer",
                 
                 EnemyType.VoidSpawn         => "Bewegt sich diagonal",
                 EnemyType.ChaosKnight       => "Stats ändern sich",

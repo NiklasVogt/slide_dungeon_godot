@@ -80,10 +80,28 @@ namespace Dungeon2048.Core.Services
         private static void SweepEnterForPlayer(GameContext ctx, Player player, int startX, int startY, int endX, int endY, int dx, int dy)
         {
             int x = startX, y = startY;
+            int tilesMove = 0;
             while (x != endX || y != endY)
             {
                 x += dx; y += dy;
+                tilesMove++;
                 TileRegistry.Enter(player, ctx, x, y);
+            }
+
+            // Akt 4: Warmth from movement (every 5 tiles -1 stack)
+            if (ctx.BiomeSystem.CurrentBiome?.Type == World.BiomeType.FrostDepths)
+            {
+                player.MovementTilesThisTurn += tilesMove;
+                if (player.MovementTilesThisTurn >= 5)
+                {
+                    int stacksToRemove = player.MovementTilesThisTurn / 5;
+                    player.FrostbiteStacks = System.Math.Max(0, player.FrostbiteStacks - stacksToRemove);
+                    player.MovementTilesThisTurn %= 5; // Keep remainder
+                    if (stacksToRemove > 0)
+                    {
+                        GD.Print($"🔥 Bewegung wärmt dich! -{stacksToRemove} Kälte-Stack (Bewegung)");
+                    }
+                }
             }
         }
 
@@ -245,7 +263,33 @@ namespace Dungeon2048.Core.Services
                     if (enemy.CanAttack() && enemy.Type != EnemyType.Thorns)
                     {
                         bus.AddAttackEvent(new AttackEvent($"Enemy_{enemy.Id}", "Player", new Vector2I(dx, dy)));
-                        ctx.Player.Hp -= enemy.Atk;
+
+                        // Akt 4: Frostbite Wraith - Kein HP-Schaden, nur +4 Kälte-Stacks
+                        if (enemy.Type == EnemyType.Frostbite)
+                        {
+                            ctx.Player.FrostbiteStacks += 4;
+                            GD.Print($"❄️👻 {enemy.DisplayName} berührt dich! +4 Kälte-Stacks (jetzt {ctx.Player.FrostbiteStacks})");
+                        }
+                        else
+                        {
+                            // Normaler HP-Schaden
+                            ctx.Player.Hp -= enemy.Atk;
+
+                            // Akt 4: Frost-Goblin - +1 Kälte-Stack bei Angriff
+                            if (enemy.Type == EnemyType.FrostGoblin)
+                            {
+                                ctx.Player.FrostbiteStacks++;
+                                GD.Print($"❄️ {enemy.DisplayName} Angriff: +1 Kälte-Stack (jetzt {ctx.Player.FrostbiteStacks})");
+                            }
+
+                            // Akt 4: Ice Dragon (Boss) - +2 oder +3 Stacks je nach Phase
+                            if (enemy.Type == EnemyType.IceDragon)
+                            {
+                                int stacks = enemy.IsPhase2 ? 3 : 2;
+                                ctx.Player.FrostbiteStacks += stacks;
+                                GD.Print($"❄️🐉 {enemy.DisplayName} Angriff: +{stacks} Kälte-Stacks! (jetzt {ctx.Player.FrostbiteStacks})");
+                            }
+                        }
 
                         // Schmied-Golem hat angegriffen, Counter zurücksetzen
                         if (enemy.Type == EnemyType.SchmiedGolem)
