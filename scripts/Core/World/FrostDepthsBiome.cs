@@ -52,15 +52,12 @@ namespace Dungeon2048.Core.World
 
         public void OnLevelStart(GameContext ctx)
         {
-            // Boss-Level: Nur 1 Lagerfeuer und keine Fackeln
             if (ObjectiveService.IsBossLevel(ctx.CurrentLevel))
             {
                 GD.Print("🧊❄️ Das Gefrorene Herz wartet... ❄️🧊");
-                SpawnCampfires(ctx, 1);
-                return;
             }
 
-            // Normale Level: 1 Lagerfeuer + 2 Fackeln
+            // ALLE Level: Genau 1 Lagerfeuer + 2 Fackeln
             SpawnCampfires(ctx, 1);
             SpawnFrostTorches(ctx, 2);
         }
