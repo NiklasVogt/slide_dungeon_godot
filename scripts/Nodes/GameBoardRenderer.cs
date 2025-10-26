@@ -406,8 +406,8 @@ namespace Dungeon2048.Nodes
 
                 var name = $"Campfire_{c.Id}";
 
-                // Warmes Orange-Rot für Lagerfeuer
-                var campfireColor = new Color(1.0f, 0.5f, 0.0f, 0.9f); // Warmes Orange
+                // Warmes Orange-Rot für Lagerfeuer - VOLLSTÄNDIG OPAK
+                var campfireColor = new Color(1.0f, 0.45f, 0.0f, 1.0f); // Warmes Orange, vollständig sichtbar
 
                 var node = GetOrCreateEntityNode(name, 5, campfireColor, c.Charges,
                     showBadge: true, badgeText: $"{c.Charges}", displayName: "Lagerfeuer");
@@ -424,8 +424,8 @@ namespace Dungeon2048.Nodes
 
                 var name = $"FrostTorch_{ft.Id}";
 
-                // Helles Blau-Weiß für Eisfackeln
-                var torchColor = new Color(0.6f, 0.8f, 1.0f, 0.9f); // Eisblau
+                // Helles Blau-Weiß für Eisfackeln - VOLLSTÄNDIG OPAK
+                var torchColor = new Color(0.4f, 0.7f, 1.0f, 1.0f); // Eisblau, vollständig sichtbar
 
                 var node = GetOrCreateEntityNode(name, 5, torchColor, 1,
                     showBadge: true, badgeText: "🔥", displayName: "Fackel");

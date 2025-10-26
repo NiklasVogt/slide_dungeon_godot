@@ -31,7 +31,7 @@ namespace Dungeon2048.Core.Tiles
 
         /// <summary>
         /// Wird am Ende der Bewegungsphase aufgerufen
-        /// Wärmt alle angrenzenden Entities
+        /// Wärmt den Spieler wenn er angrenzend ist und verbraucht immer eine Ladung
         /// </summary>
         public static void WarmAdjacentEntities(Services.GameContext ctx)
         {
@@ -39,38 +39,22 @@ namespace Dungeon2048.Core.Tiles
             {
                 if (campfire.IsExtinguished) continue;
 
-                bool warmedAny = false;
-
-                // Prüfe Spieler
+                // Prüfe ob Spieler angrenzend ist
                 if (campfire.IsAdjacent(ctx.Player.X, ctx.Player.Y))
                 {
-                    if (ctx.Player.FrostbiteStacks > 0)
+                    // Reduziere Frostbite Stacks (kann auch 0 sein)
+                    int removed = System.Math.Min(ctx.Player.FrostbiteStacks, CampfireTile.WarmthAmount);
+                    if (removed > 0)
                     {
-                        int removed = System.Math.Min(ctx.Player.FrostbiteStacks, CampfireTile.WarmthAmount);
                         ctx.Player.FrostbiteStacks -= removed;
                         GD.Print($"🔥 Lagerfeuer wärmt Spieler: -{removed} Kälte-Stacks (jetzt {ctx.Player.FrostbiteStacks})");
-                        warmedAny = true;
                     }
-                }
-
-                // Prüfe alle Gegner
-                foreach (var enemy in ctx.Enemies.ToList())
-                {
-                    if (campfire.IsAdjacent(enemy.X, enemy.Y))
+                    else
                     {
-                        if (enemy.FrostbiteStacks > 0)
-                        {
-                            int removed = System.Math.Min(enemy.FrostbiteStacks, CampfireTile.WarmthAmount);
-                            enemy.FrostbiteStacks -= removed;
-                            GD.Print($"🔥 Lagerfeuer wärmt {enemy.DisplayName}: -{removed} Kälte-Stacks (jetzt {enemy.FrostbiteStacks})");
-                            warmedAny = true;
-                        }
+                        GD.Print($"🔥 Spieler steht am Lagerfeuer (keine Kälte-Stacks)");
                     }
-                }
 
-                // Wenn jemand gewärmt wurde, verbrauche eine Ladung
-                if (warmedAny)
-                {
+                    // IMMER eine Ladung verbrauchen wenn Spieler angrenzend ist
                     campfire.ConsumeCharge();
                     GD.Print($"🔥 Lagerfeuer bei ({campfire.X}, {campfire.Y}) verbraucht Ladung: {campfire.Charges}/{CampfireTile.MaxCharges} verbleibend");
 
@@ -81,6 +65,8 @@ namespace Dungeon2048.Core.Tiles
                         ctx.ExtinguishedCampfires.Add(campfire);
                     }
                 }
+
+                // Gegner werden NICHT vom Lagerfeuer gewärmt (nur Spieler)
             }
         }
     }
