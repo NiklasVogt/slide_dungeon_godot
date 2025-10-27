@@ -203,17 +203,6 @@ namespace Dungeon2048.Core.Services
                         GD.Print("🔮 Die Hex-Hexe verflucht dich beim Kontakt!");
                     }
 
-                    // Akt 4: Cold Attack Counter-Attack (Enemy hits back with cold)
-                    if (target.Hp > 0) // Only if enemy survives
-                    {
-                        int coldDamage = target.GetColdAttackDamage();
-                        if (coldDamage > 0)
-                        {
-                            ctx.Player.ColdStacks += coldDamage;
-                            GD.Print($"❄️ {target.DisplayName} friert dich beim Angriff ein! +{coldDamage} Cold Stacks (Total: {ctx.Player.ColdStacks})");
-                        }
-                    }
-
                     if (target.Hp <= 0)
                     {
                         var ex = target.X;
@@ -265,13 +254,9 @@ namespace Dungeon2048.Core.Services
 
                         // Akt 4: Cold Attack
                         int coldDamage = enemy.GetColdAttackDamage();
-                        GD.Print($"🐛 DEBUG: {enemy.DisplayName} (Type: {enemy.Type}) GetColdAttackDamage() = {coldDamage}");
-
                         if (coldDamage > 0)
                         {
-                            int oldStacks = ctx.Player.ColdStacks;
                             ctx.Player.ColdStacks += coldDamage;
-                            GD.Print($"🐛 DEBUG: Player Cold Stacks: {oldStacks} -> {ctx.Player.ColdStacks}");
 
                             if (enemy.Type == EnemyType.Frostbite)
                             {
@@ -281,10 +266,6 @@ namespace Dungeon2048.Core.Services
                             {
                                 GD.Print($"❄️ {enemy.DisplayName} friert dich ein! +{coldDamage} Cold Stacks (Total: {ctx.Player.ColdStacks})");
                             }
-                        }
-                        else
-                        {
-                            GD.Print($"🐛 DEBUG: Kein Cold Attack für {enemy.DisplayName} (coldDamage = 0)");
                         }
 
                         // Schmied-Golem hat angegriffen, Counter zurücksetzen
