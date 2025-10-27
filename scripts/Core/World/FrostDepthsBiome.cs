@@ -21,9 +21,9 @@ namespace Dungeon2048.Core.World
         public Color GridColor => new Color(0.6f, 0.7f, 0.9f); // Hell Blau-Grau
         public Color AmbientColor => new Color(0.7f, 0.8f, 1.0f); // Eisiges Weiß-Blau
 
-        public float EnemyHealthMultiplier => 1.5f; // Noch stärker als Akt 3
-        public float EnemyDamageMultiplier => 1.6f;
-        public float SpawnRateMultiplier => 0.8f; // Weniger aber mächtiger
+        public float EnemyHealthMultiplier => 1.0f; // Cold Stacks sind die Hauptbedrohung
+        public float EnemyDamageMultiplier => 1.0f; // Cold Stacks sind die Hauptbedrohung
+        public float SpawnRateMultiplier => 0.8f; // Weniger aber gefährlicher (Cold)
 
         public List<EnemyType> StandardEnemies => new()
         {

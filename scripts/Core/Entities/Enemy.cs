@@ -167,15 +167,15 @@ namespace Dungeon2048.Core.Entities
                 EnemyType.ForgeMaster       => 18,
                 EnemyType.FireGiant         => 80,
                 
-                // Akt 4
-                EnemyType.FrostGoblin       => 10,
-                EnemyType.Yeti              => 40,
-                EnemyType.IceShard          => 6,
-                EnemyType.Frostbite         => 15,
-                EnemyType.Snowblind         => 12,
-                EnemyType.GlacialSentinel   => 45,
-                EnemyType.PermafrostLich    => 20,
-                EnemyType.IceDragon         => 90,
+                // Akt 4 (Reduziert: Cold Stacks sind die Hauptbedrohung)
+                EnemyType.FrostGoblin       => 7,
+                EnemyType.Yeti              => 25,
+                EnemyType.IceShard          => 4,
+                EnemyType.Frostbite         => 10,
+                EnemyType.Snowblind         => 8,
+                EnemyType.GlacialSentinel   => 30,
+                EnemyType.PermafrostLich    => 15,
+                EnemyType.IceDragon         => 70,
                 
                 // Akt 5
                 EnemyType.Dragon            => 25,
@@ -230,15 +230,15 @@ namespace Dungeon2048.Core.Entities
                 EnemyType.ForgeMaster       => 2,
                 EnemyType.FireGiant         => 18,
                 
-                // Akt 4
-                EnemyType.FrostGoblin       => 2,
-                EnemyType.Yeti              => 8,
-                EnemyType.IceShard          => 4,
-                EnemyType.Frostbite         => 3,
-                EnemyType.Snowblind         => 10,
+                // Akt 4 (Reduziert: Cold Stacks sind die Hauptbedrohung)
+                EnemyType.FrostGoblin       => 1,
+                EnemyType.Yeti              => 4,
+                EnemyType.IceShard          => 2,
+                EnemyType.Frostbite         => 0,  // Nur Cold Stacks, kein HP-Schaden
+                EnemyType.Snowblind         => 5,
                 EnemyType.GlacialSentinel   => 0,
-                EnemyType.PermafrostLich    => 6,
-                EnemyType.IceDragon         => 20,
+                EnemyType.PermafrostLich    => 3,
+                EnemyType.IceDragon         => 12,
                 
                 // Akt 5
                 EnemyType.Dragon            => 7,
@@ -286,15 +286,15 @@ namespace Dungeon2048.Core.Entities
                 EnemyType.ForgeMaster       => 0.9,
                 EnemyType.FireGiant         => 3.2,
                 
-                // Akt 4
-                EnemyType.FrostGoblin       => 1.1,
-                EnemyType.Yeti              => 2.0,
-                EnemyType.IceShard          => 1.3,
-                EnemyType.Frostbite         => 1.2,
-                EnemyType.Snowblind         => 2.2,
+                // Akt 4 (Reduziert: Cold Stacks sind die Hauptbedrohung)
+                EnemyType.FrostGoblin       => 0.8,
+                EnemyType.Yeti              => 1.4,
+                EnemyType.IceShard          => 0.9,
+                EnemyType.Frostbite         => 0.0,  // Nur Cold Stacks, kein HP-Schaden
+                EnemyType.Snowblind         => 1.5,
                 EnemyType.GlacialSentinel   => 0.0,
-                EnemyType.PermafrostLich    => 1.7,
-                EnemyType.IceDragon         => 3.5,
+                EnemyType.PermafrostLich    => 1.2,
+                EnemyType.IceDragon         => 2.5,
                 
                 // Akt 5
                 EnemyType.Dragon            => 2.5,
