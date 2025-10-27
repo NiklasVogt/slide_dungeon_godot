@@ -54,20 +54,19 @@ namespace Dungeon2048.Core.World
             if (ObjectiveService.IsBossLevel(ctx.CurrentLevel))
             {
                 GD.Print("❄️ Das Gefrorene Herz des Eisdrachen schlägt... ❄️");
-                // Boss Arena: 3 Campfires, 2 Torches
-                SpawnCampfires(ctx, 3);
+                // Boss Arena: 1 Campfire, 2 Torches
+                SpawnCampfires(ctx, 1);
                 SpawnTorches(ctx, 2);
                 return;
             }
 
-            // Normale Level: 2-3 Campfires spawnen
-            int campfireCount = ctx.Rng.Next(2, 4);
-            SpawnCampfires(ctx, campfireCount);
+            // Normale Level: Nur 1 Campfire pro Level
+            SpawnCampfires(ctx, 1);
 
             // 2 Torches spawnen
             SpawnTorches(ctx, 2);
 
-            GD.Print($"❄️ Level-Start: {campfireCount} Campfires, 2 Torches");
+            GD.Print($"❄️ Level-Start: 1 Campfire, 2 Torches");
         }
 
         public void OnLevelComplete(GameContext ctx)
