@@ -997,7 +997,7 @@ namespace Dungeon2048.Core.Services
             {
                 Enemies.Remove(frozen);
                 TotalEnemiesKilled++;
-                Objective.OnEnemyKilled(this);
+                Objective.OnKillEnemy(frozen);
             }
         }
 

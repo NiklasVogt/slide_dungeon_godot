@@ -188,11 +188,11 @@ namespace Dungeon2048.Nodes
             };
         }
 
-        private string GetEnemyBadge(Enemy e)
+        private string GetEnemyBadge(Enemy e, GameContext ctx)
         {
             // Cold Stacks - Priorität in Frost Depths (außer Boss und Cold-Immune)
             if (e.ColdStacks > 0 && !e.IsBoss && e.ColdResistance < 999 &&
-                _gameContext.BiomeSystem.CurrentBiome?.Type == Core.World.BiomeType.FrostDepths)
+                ctx.BiomeSystem.CurrentBiome?.Type == Core.World.BiomeType.FrostDepths)
                 return $"❄️{e.ColdStacks}";
 
             // Burning Status hat höchste Priorität (außer Boss)
@@ -219,10 +219,10 @@ namespace Dungeon2048.Nodes
             return e.EnemyLevel.ToString();
         }
 
-        private string GetPlayerBadge(Player player)
+        private string GetPlayerBadge(Player player, GameContext ctx)
         {
             // Cold Stacks - Priorität in Frost Depths (Akt 4)
-            if (player.ColdStacks > 0 && _gameContext.BiomeSystem.CurrentBiome?.Type == Core.World.BiomeType.FrostDepths)
+            if (player.ColdStacks > 0 && ctx.BiomeSystem.CurrentBiome?.Type == Core.World.BiomeType.FrostDepths)
                 return $"❄️{player.ColdStacks}";
 
             // Burning Status - Zeige Feuer mit Stack Count (Akt 3)
