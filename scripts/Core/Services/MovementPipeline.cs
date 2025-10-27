@@ -203,6 +203,17 @@ namespace Dungeon2048.Core.Services
                         GD.Print("🔮 Die Hex-Hexe verflucht dich beim Kontakt!");
                     }
 
+                    // Akt 4: Cold Attack Counter-Attack (Enemy hits back with cold)
+                    if (target.Hp > 0) // Only if enemy survives
+                    {
+                        int coldDamage = target.GetColdAttackDamage();
+                        if (coldDamage > 0)
+                        {
+                            ctx.Player.ColdStacks += coldDamage;
+                            GD.Print($"❄️ {target.DisplayName} friert dich beim Angriff ein! +{coldDamage} Cold Stacks (Total: {ctx.Player.ColdStacks})");
+                        }
+                    }
+
                     if (target.Hp <= 0)
                     {
                         var ex = target.X;
