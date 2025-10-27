@@ -254,9 +254,14 @@ namespace Dungeon2048.Core.Services
 
                         // Akt 4: Cold Attack
                         int coldDamage = enemy.GetColdAttackDamage();
+                        GD.Print($"🐛 DEBUG: {enemy.DisplayName} (Type: {enemy.Type}) GetColdAttackDamage() = {coldDamage}");
+
                         if (coldDamage > 0)
                         {
+                            int oldStacks = ctx.Player.ColdStacks;
                             ctx.Player.ColdStacks += coldDamage;
+                            GD.Print($"🐛 DEBUG: Player Cold Stacks: {oldStacks} -> {ctx.Player.ColdStacks}");
+
                             if (enemy.Type == EnemyType.Frostbite)
                             {
                                 GD.Print($"❄️👻 {enemy.DisplayName} berührt dich! +{coldDamage} Cold Stacks (Total: {ctx.Player.ColdStacks})");
@@ -265,6 +270,10 @@ namespace Dungeon2048.Core.Services
                             {
                                 GD.Print($"❄️ {enemy.DisplayName} friert dich ein! +{coldDamage} Cold Stacks (Total: {ctx.Player.ColdStacks})");
                             }
+                        }
+                        else
+                        {
+                            GD.Print($"🐛 DEBUG: Kein Cold Attack für {enemy.DisplayName} (coldDamage = 0)");
                         }
 
                         // Schmied-Golem hat angegriffen, Counter zurücksetzen
