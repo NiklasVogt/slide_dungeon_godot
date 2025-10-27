@@ -455,11 +455,26 @@ namespace Dungeon2048.Core.Services
                 var pos = CalculateFurthest(ctx, entity, dx, dy, occupied);
                 entity.X = pos.X; entity.Y = pos.Y;
                 occupied.Add($"{entity.X},{entity.Y}");
-                
+
                 // Tür wieder als occupied markieren
                 if (doorWasOccupied && ctx.Door != null && ctx.Door.IsActive)
                 {
                     occupied.Add($"{ctx.Door.X},{ctx.Door.Y}");
+                }
+
+                // Akt 4: Track Player Movement Distance für Wärme
+                if (entity is Player && ctx.BiomeSystem.CurrentBiome?.Type == World.BiomeType.FrostDepths)
+                {
+                    int distanceMoved = System.Math.Abs(entity.X - startX) + System.Math.Abs(entity.Y - startY);
+                    ctx.TotalMovementTiles += distanceMoved;
+
+                    // Alle 5 Tiles: -1 Cold Stack
+                    while (ctx.TotalMovementTiles >= 5 && ctx.Player.ColdStacks > 0)
+                    {
+                        ctx.Player.ColdStacks--;
+                        ctx.TotalMovementTiles -= 5;
+                        GD.Print($"🏃 Movement Wärme! Player -1 Cold Stack (Total: {ctx.Player.ColdStacks})");
+                    }
                 }
 
                 ResolveAfterMove(ctx, bus, entity, dx, dy, occupied, startX, startY);

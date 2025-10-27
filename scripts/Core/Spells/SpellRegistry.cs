@@ -35,6 +35,17 @@ namespace Dungeon2048.Core.Spells
         public bool IsPermanent => false;
         public void Cast(Entities.Player player, GameContext ctx)
         {
+            // Akt 4: Zauber-Wärme (Feuerball) -2 Cold Stacks
+            if (ctx.BiomeSystem.CurrentBiome?.Type == World.BiomeType.FrostDepths)
+            {
+                int warmth = Math.Min(2, player.ColdStacks); // Max 2 Stacks entfernen
+                player.ColdStacks -= warmth;
+                if (warmth > 0)
+                {
+                    Godot.GD.Print($"🔥 Feuerball Wärme! Player -{warmth} Cold Stacks (Total: {player.ColdStacks})");
+                }
+            }
+
             int dmg = 8 + (int)(player.Level / 2.0);
             int px = player.X; int py = player.Y;
             var toKill = new List<Entities.Enemy>();

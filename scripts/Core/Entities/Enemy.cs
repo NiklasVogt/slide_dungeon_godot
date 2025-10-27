@@ -92,16 +92,31 @@ namespace Dungeon2048.Core.Entities
             Type = type;
             EnemyLevel = enemyLevel;
             IsBoss = isBoss;
-            
+
             // NEU: MaxHp setzen
             MaxHp = CalcHp(type, enemyLevel, isBoss);
             Hp = MaxHp;
-            
+
             // Type-spezifische Initialisierung
             if (type == EnemyType.Mimic)
             {
                 IsDisguised = true;
             }
+
+            // Akt 4: Cold Resistance per Enemy Type
+            ColdResistance = type switch
+            {
+                // Akt 4 Enemies
+                EnemyType.FrostGoblin       => 5,
+                EnemyType.Yeti              => 7,
+                EnemyType.IceShard          => 999,  // Immun
+                EnemyType.Frostbite         => 999,  // Immun
+                EnemyType.Snowblind         => 8,
+                EnemyType.GlacialSentinel   => 999,  // Immun
+                EnemyType.PermafrostLich    => 999,  // Immun
+                EnemyType.IceDragon         => 999,  // Immun
+                _ => 10  // Default für alle anderen Enemies
+            };
         }
 
         static int CalcHp(EnemyType type, int level, bool isBoss)

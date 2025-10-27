@@ -40,6 +40,9 @@ namespace Dungeon2048.Nodes
             // Akt 3 Tiles
             TileRegistry.Register(new FireTileBehavior());
             TileRegistry.Register(new FallingRockTile());
+
+            // Akt 4 Tiles
+            TileRegistry.Register(new CampfireTileBehavior());
         }
 
         private static void RegisterEnemies()
@@ -69,6 +72,16 @@ namespace Dungeon2048.Nodes
             EnemyRegistry.Register(new ObsidianWarriorArch());
             EnemyRegistry.Register(new ForgeMasterArch());
             EnemyRegistry.Register(new FireGiantArch());
+
+            // Akt 4
+            EnemyRegistry.Register(new FrostGoblinArch());
+            EnemyRegistry.Register(new YetiArch());
+            EnemyRegistry.Register(new IceShardArch());
+            EnemyRegistry.Register(new FrostbiteArch());
+            EnemyRegistry.Register(new SnowblindArch());
+            EnemyRegistry.Register(new GlacialSentinelArch());
+            EnemyRegistry.Register(new PermafrostLichArch());
+            EnemyRegistry.Register(new IceDragonArch());
 
             // Legacy/Special
             EnemyRegistry.Register(new ThornsArch());
