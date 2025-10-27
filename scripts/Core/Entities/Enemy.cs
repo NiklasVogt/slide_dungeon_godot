@@ -119,6 +119,24 @@ namespace Dungeon2048.Core.Entities
             };
         }
 
+        // Akt 4: Cold Attack Damage per Enemy Type
+        public int GetColdAttackDamage()
+        {
+            return Type switch
+            {
+                // Akt 4 Enemies
+                EnemyType.FrostGoblin       => 1,  // +1 Cold Stack
+                EnemyType.Yeti              => 2,  // +2 Cold Stacks
+                EnemyType.IceShard          => 0,  // Kein Cold Attack
+                EnemyType.Frostbite         => 4,  // +4 Cold Stacks (kein HP-Schaden)
+                EnemyType.Snowblind         => 1,  // +1 Cold Stack
+                EnemyType.GlacialSentinel   => 0,  // Kein Angriff (ATK: 0)
+                EnemyType.PermafrostLich    => 0,  // Sightline Cold (nicht bei Attack)
+                EnemyType.IceDragon         => IsPhase2 ? 3 : 2,  // Phase 2: +3, Phase 1: +2
+                _ => 0  // Kein Cold Attack
+            };
+        }
+
         static int CalcHp(EnemyType type, int level, bool isBoss)
         {
             int baseHp = type switch

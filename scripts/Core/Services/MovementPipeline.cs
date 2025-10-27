@@ -245,7 +245,27 @@ namespace Dungeon2048.Core.Services
                     if (enemy.CanAttack() && enemy.Type != EnemyType.Thorns)
                     {
                         bus.AddAttackEvent(new AttackEvent($"Enemy_{enemy.Id}", "Player", new Vector2I(dx, dy)));
-                        ctx.Player.Hp -= enemy.Atk;
+
+                        // Akt 4: Frostbite macht KEINEN HP-Schaden, nur Cold Stacks
+                        if (enemy.Type != EnemyType.Frostbite)
+                        {
+                            ctx.Player.Hp -= enemy.Atk;
+                        }
+
+                        // Akt 4: Cold Attack
+                        int coldDamage = enemy.GetColdAttackDamage();
+                        if (coldDamage > 0)
+                        {
+                            ctx.Player.ColdStacks += coldDamage;
+                            if (enemy.Type == EnemyType.Frostbite)
+                            {
+                                GD.Print($"❄️👻 {enemy.DisplayName} berührt dich! +{coldDamage} Cold Stacks (Total: {ctx.Player.ColdStacks})");
+                            }
+                            else
+                            {
+                                GD.Print($"❄️ {enemy.DisplayName} friert dich ein! +{coldDamage} Cold Stacks (Total: {ctx.Player.ColdStacks})");
+                            }
+                        }
 
                         // Schmied-Golem hat angegriffen, Counter zurücksetzen
                         if (enemy.Type == EnemyType.SchmiedGolem)
