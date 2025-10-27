@@ -925,46 +925,54 @@ namespace Dungeon2048.Core.Services
             if (BiomeSystem.CurrentBiome?.Type != World.BiomeType.FrostDepths)
                 return;
 
-            // Prüfe ob Player angrenzend zu einem Campfire ist (nicht diagonal)
-            var adjacentCampfires = new List<CampfireTile>();
-            foreach (var campfire in Campfires)
+            // Safety Check: Ensure only 1 campfire exists
+            if (Campfires.Count > 1)
             {
-                if (campfire.IsExtinguished) continue;
-
-                // Prüfe nur orthogonale Nachbarn (nicht diagonal)
-                int dx = System.Math.Abs(campfire.X - Player.X);
-                int dy = System.Math.Abs(campfire.Y - Player.Y);
-
-                // Angrenzend = genau 1 Tile Abstand in X oder Y (nicht beide)
-                if ((dx == 1 && dy == 0) || (dx == 0 && dy == 1))
+                GD.PrintErr($"⚠️ WARNING: {Campfires.Count} campfires exist! Removing duplicates...");
+                while (Campfires.Count > 1)
                 {
-                    adjacentCampfires.Add(campfire);
+                    Campfires.RemoveAt(Campfires.Count - 1);
                 }
             }
 
-            // Nutze das erste angrenzende Campfire (wenn mehrere vorhanden)
-            if (adjacentCampfires.Count > 0)
+            // Prüfe ob Player angrenzend zum Campfire ist (orthogonal, nicht diagonal)
+            var campfire = Campfires.FirstOrDefault();
+            if (campfire == null || campfire.IsExtinguished)
             {
-                var campfire = adjacentCampfires[0];
+                // Kein aktives Campfire vorhanden
+                if (campfire?.IsExtinguished == true)
+                {
+                    // Respawn erloschenes Campfire
+                    Campfires.Remove(campfire);
+                    GD.Print($"🔥 Campfire erloschen! Spawne neues...");
+
+                    var pos = RandomFreeCell();
+                    var newCampfire = new CampfireTile(pos.X, pos.Y);
+                    Campfires.Add(newCampfire);
+                    GD.Print($"🔥 Neues Campfire gespawned bei ({pos.X}, {pos.Y})");
+                    campfire = newCampfire;
+                }
+                else
+                {
+                    return; // Kein Campfire auf diesem Level
+                }
+            }
+
+            // Prüfe orthogonale Nachbarschaft (4 Richtungen)
+            int dx = System.Math.Abs(campfire.X - Player.X);
+            int dy = System.Math.Abs(campfire.Y - Player.Y);
+
+            // Angrenzend = genau 1 Tile Abstand in X ODER Y (nicht beide, nicht diagonal)
+            bool isAdjacent = (dx == 1 && dy == 0) || (dx == 0 && dy == 1);
+
+            if (isAdjacent && Player.ColdStacks > 0)
+            {
                 if (campfire.UseCharge())
                 {
-                    Player.ColdStacks = System.Math.Max(0, Player.ColdStacks - CampfireTile.WarmthAmount);
-                    GD.Print($"🔥 Campfire Wärme! Player -{CampfireTile.WarmthAmount} Cold Stacks (Total: {Player.ColdStacks}, Charges: {campfire.Charges})");
+                    int removedStacks = System.Math.Min(CampfireTile.WarmthAmount, Player.ColdStacks);
+                    Player.ColdStacks -= removedStacks;
+                    GD.Print($"🔥 Campfire Wärme! -{removedStacks} Cold Stacks (Total: {Player.ColdStacks}, Remaining Charges: {campfire.Charges})");
                 }
-            }
-
-            // Respawn erloschene Campfires
-            var extinguished = Campfires.Where(c => c.IsExtinguished).ToList();
-            foreach (var dead in extinguished)
-            {
-                Campfires.Remove(dead);
-                GD.Print($"🔥 Campfire erloschen! Spawne neues...");
-
-                // Spawne neues Campfire an freier Position
-                var pos = RandomFreeCell();
-                var newCampfire = new CampfireTile(pos.X, pos.Y);
-                Campfires.Add(newCampfire);
-                GD.Print($"🔥 Neues Campfire gespawned bei ({pos.X}, {pos.Y})");
             }
         }
 
