@@ -85,6 +85,10 @@ namespace Dungeon2048.Core.Entities
         public bool StandingOnFire = false;        // Moloch: Tracking für Heilung auf Lava
         public int ForgeBuffStacks = 0;            // Forge Master: Wie oft wurde dieser Gegner gebuffed
 
+        // Akt 4: Ice Dragon Boss Mechanics
+        public int IceDragonWinterCounter = 0;     // Ice Dragon: Ewiger Winter alle 4 Züge
+        public int IceDragonSpawnCounter = 0;      // Ice Dragon: Wraith Spawn alle 5 Züge
+
         public int MaxHp { get; private set; }
         public Enemy(int x, int y, EnemyType type, int enemyLevel, bool isBoss = false)
             : base(x, y, CalcHp(type, enemyLevel, isBoss), CalcAtk(type, enemyLevel, isBoss))

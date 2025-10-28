@@ -128,6 +128,9 @@ namespace Dungeon2048.Nodes
             // Fire Giant Mechanics (after all entities reached final position)
             _ctx.HandleFireGiantMechanics();
 
+            // Ice Dragon Mechanics (after all entities reached final position)
+            _ctx.HandleIceDragonMechanics();
+
             // Process Burning Damage (after combat)
             ProcessBurningDamage();
 

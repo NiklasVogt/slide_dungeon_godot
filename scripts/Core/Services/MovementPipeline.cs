@@ -620,16 +620,25 @@ namespace Dungeon2048.Core.Services
                     ctx.Player.ColdStacks -= removedStacks;
                     GD.Print($"🔥 Campfire Wärme! -{removedStacks} Cold Stacks (Total: {ctx.Player.ColdStacks}, Charges: {campfire.Charges})");
 
-                    // Instant respawn if campfire is now extinguished
+                    // Instant respawn if campfire is now extinguished (unless Ice Dragon Phase 2)
                     if (campfire.IsExtinguished)
                     {
                         ctx.Campfires.Remove(campfire);
-                        GD.Print($"🔥 Campfire erloschen! Spawne neues sofort...");
 
-                        var pos = ctx.RandomFreeCell();
-                        var newCampfire = new CampfireTile(pos.X, pos.Y);
-                        ctx.Campfires.Add(newCampfire);
-                        GD.Print($"🔥 Neues Campfire gespawned bei ({pos.X}, {pos.Y})");
+                        // Check if Ice Dragon Phase 2 is active - no respawn allowed
+                        var iceDragon = ctx.Enemies.FirstOrDefault(e => e.Type == EnemyType.IceDragon && e.IsBoss && e.IsPhase2);
+                        if (iceDragon != null)
+                        {
+                            GD.Print($"❄️ Campfire erloschen! Keine Wärmequelle mehr im Absoluten Null...");
+                        }
+                        else
+                        {
+                            GD.Print($"🔥 Campfire erloschen! Spawne neues sofort...");
+                            var pos = ctx.RandomFreeCell();
+                            var newCampfire = new CampfireTile(pos.X, pos.Y);
+                            ctx.Campfires.Add(newCampfire);
+                            GD.Print($"🔥 Neues Campfire gespawned bei ({pos.X}, {pos.Y})");
+                        }
                     }
                 }
             }

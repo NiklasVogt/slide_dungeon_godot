@@ -718,6 +718,111 @@ namespace Dungeon2048.Core.Services
             }
         }
 
+        // Akt 4: Ice Dragon Boss Mechanics
+        public void HandleIceDragonMechanics()
+        {
+            var iceDragon = Enemies.FirstOrDefault(e => e.Type == EnemyType.IceDragon && e.IsBoss);
+            if (iceDragon == null) return;
+
+            // Increment counters
+            iceDragon.IceDragonWinterCounter++;
+            iceDragon.IceDragonSpawnCounter++;
+
+            // Phase 1: Ewiger Winter - Alle 4 Züge
+            if (iceDragon.IceDragonWinterCounter >= 4)
+            {
+                GD.Print("❄️💀 EWIGER WINTER! Alle Entities +3 Cold Stacks! ❄️💀");
+
+                // Player
+                Player.ColdStacks += 3;
+
+                // All Enemies
+                foreach (var enemy in Enemies)
+                {
+                    enemy.ColdStacks += 3;
+                }
+
+                iceDragon.IceDragonWinterCounter = 0;
+            }
+
+            // Phase 1: Wraith Spawn - Alle 5 Züge
+            if (iceDragon.IceDragonSpawnCounter >= 5)
+            {
+                SpawnFrostbiteWraith();
+                iceDragon.IceDragonSpawnCounter = 0;
+            }
+
+            // Phase 2: Bei 50% HP
+            if (!iceDragon.IsPhase2 && iceDragon.Hp <= iceDragon.MaxHp / 2)
+            {
+                ActivateIceDragonPhase2(iceDragon);
+            }
+
+            // Phase 2: Warmes Herz Aura (-2 Cold Stacks wenn Player angrenzend)
+            if (iceDragon.IsPhase2)
+            {
+                ProcessWarmesHerzAura(iceDragon);
+            }
+        }
+
+        private void SpawnFrostbiteWraith()
+        {
+            GD.Print("👻❄️ FROSTBITE WRAITH ERSCHEINT! 👻❄️");
+
+            var pos = RandomFreeCell();
+            var wraith = EnemyRegistry.Get(EnemyType.Frostbite).Create(pos.X, pos.Y, CalculateEnemyLevel() + 1);
+
+            // Biome Modifiers
+            var biome = BiomeSystem.CurrentBiome;
+            wraith.Hp = (int)(wraith.Hp * biome.EnemyHealthMultiplier);
+            wraith.Atk = (int)(wraith.Atk * biome.EnemyDamageMultiplier);
+
+            Enemies.Add(wraith);
+        }
+
+        private void ActivateIceDragonPhase2(Enemy iceDragon)
+        {
+            iceDragon.IsPhase2 = true;
+            GD.Print("❄️🐉 ICE DRAGON PHASE 2: ABSOLUTER NULL! 🐉❄️");
+            GD.Print("Die Kälte wird unerträglich! Alle Wärmequellen verschwinden!");
+
+            // Remove all Campfires
+            int campfireCount = Campfires.Count;
+            Campfires.Clear();
+            if (campfireCount > 0)
+            {
+                GD.Print($"🔥💨 {campfireCount} Lagerfeuer erlöschen!");
+            }
+
+            // Remove all Torches
+            int torchCount = Torches.Count;
+            Torches.Clear();
+            if (torchCount > 0)
+            {
+                GD.Print($"🔦💨 {torchCount} Fackeln erlöschen!");
+            }
+
+            // Increase ATK to 25
+            iceDragon.Atk = 25;
+            GD.Print($"🐉 Der Eisdrache wird stärker! ATK: 25");
+            GD.Print($"❤️‍🔥 Nur noch das warme Herz des Drachens kann dich retten...");
+        }
+
+        private void ProcessWarmesHerzAura(Enemy iceDragon)
+        {
+            // Check if player is adjacent (orthogonal only, 1-tile melee range)
+            int dx = System.Math.Abs(iceDragon.X - Player.X);
+            int dy = System.Math.Abs(iceDragon.Y - Player.Y);
+            bool isAdjacent = (dx == 1 && dy == 0) || (dx == 0 && dy == 1);
+
+            if (isAdjacent && Player.ColdStacks > 0)
+            {
+                int warmth = System.Math.Min(2, Player.ColdStacks);
+                Player.ColdStacks -= warmth;
+                GD.Print($"❤️‍🔥 Warmes Herz: -{warmth} Cold Stacks (Total: {Player.ColdStacks})");
+            }
+        }
+
         private void HandlePyromaniacExplosion(int x, int y)
         {
             const int explosionDamage = 10;
