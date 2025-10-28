@@ -619,6 +619,18 @@ namespace Dungeon2048.Core.Services
                     int removedStacks = System.Math.Min(CampfireTile.WarmthAmount, ctx.Player.ColdStacks);
                     ctx.Player.ColdStacks -= removedStacks;
                     GD.Print($"🔥 Campfire Wärme! -{removedStacks} Cold Stacks (Total: {ctx.Player.ColdStacks}, Charges: {campfire.Charges})");
+
+                    // Instant respawn if campfire is now extinguished
+                    if (campfire.IsExtinguished)
+                    {
+                        ctx.Campfires.Remove(campfire);
+                        GD.Print($"🔥 Campfire erloschen! Spawne neues sofort...");
+
+                        var pos = ctx.RandomFreeCell();
+                        var newCampfire = new CampfireTile(pos.X, pos.Y);
+                        ctx.Campfires.Add(newCampfire);
+                        GD.Print($"🔥 Neues Campfire gespawned bei ({pos.X}, {pos.Y})");
+                    }
                 }
             }
         }

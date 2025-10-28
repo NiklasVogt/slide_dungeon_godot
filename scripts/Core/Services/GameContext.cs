@@ -465,6 +465,7 @@ namespace Dungeon2048.Core.Services
             if (Teleporters.Any(t => t.X == x && t.Y == y && t.IsActive)) return false; // Teleporter blockieren nicht
             if (RuneTraps.Any(r => r.X == x && r.Y == y && !r.IsTriggered)) return false; // Fallen blockieren nicht
             if (MagicBarriers.Any(m => m.X == x && m.Y == y && !m.IsDestroyed)) return true;
+            if (Campfires.Any(c => c.X == x && c.Y == y && !c.IsExtinguished)) return true; // Campfires blockieren
             return false;
         }
 
@@ -935,22 +936,8 @@ namespace Dungeon2048.Core.Services
                 }
             }
 
-            // Check for extinguished campfire and respawn
-            var campfire = Campfires.FirstOrDefault();
-            if (campfire != null && campfire.IsExtinguished)
-            {
-                // Respawn erloschenes Campfire
-                Campfires.Remove(campfire);
-                GD.Print($"🔥 Campfire erloschen! Spawne neues...");
-
-                var pos = RandomFreeCell();
-                var newCampfire = new CampfireTile(pos.X, pos.Y);
-                Campfires.Add(newCampfire);
-                GD.Print($"🔥 Neues Campfire gespawned bei ({pos.X}, {pos.Y})");
-            }
-
-            // NOTE: Warmth check removed - now handled in MovementPipeline.CheckCampfireWarmth()
-            // This prevents double-usage of campfire per turn
+            // NOTE: Warmth check and respawn now handled in MovementPipeline.CheckCampfireWarmth()
+            // Campfire respawns instantly when reaching 0 charges, not on next turn
         }
 
         private void ProcessColdDamage()
