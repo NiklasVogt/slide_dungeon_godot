@@ -145,12 +145,12 @@ namespace Dungeon2048.Core.Services
             // NEU: Teleporter am Ende des Zuges verarbeiten
             ProcessTeleporters();
 
-            // Akt 4: Cold System Processing
+            // Akt 4: Cold System Processing (except death check - that happens after movement/combat)
             ProcessColdAccumulation();
             ProcessCampfireWarmth();
             ProcessGlacialSentinelAuras();
             ProcessPermafrostLichChill();
-            ProcessColdDamage();
+            // NOTE: ProcessColdDamage() moved to GameBoard.cs after movement/combat complete
 
             CheckAndSpawnDoor();
 
@@ -940,7 +940,7 @@ namespace Dungeon2048.Core.Services
             // Campfire respawns instantly when reaching 0 charges, not on next turn
         }
 
-        private void ProcessColdDamage()
+        public void ProcessColdDamage()
         {
             // Nur in Frost Depths Biome aktiv
             if (BiomeSystem.CurrentBiome?.Type != World.BiomeType.FrostDepths)
