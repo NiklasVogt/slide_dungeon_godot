@@ -935,45 +935,22 @@ namespace Dungeon2048.Core.Services
                 }
             }
 
-            // Prüfe ob Player angrenzend zum Campfire ist (orthogonal, nicht diagonal)
+            // Check for extinguished campfire and respawn
             var campfire = Campfires.FirstOrDefault();
-            if (campfire == null || campfire.IsExtinguished)
+            if (campfire != null && campfire.IsExtinguished)
             {
-                // Kein aktives Campfire vorhanden
-                if (campfire?.IsExtinguished == true)
-                {
-                    // Respawn erloschenes Campfire
-                    Campfires.Remove(campfire);
-                    GD.Print($"🔥 Campfire erloschen! Spawne neues...");
+                // Respawn erloschenes Campfire
+                Campfires.Remove(campfire);
+                GD.Print($"🔥 Campfire erloschen! Spawne neues...");
 
-                    var pos = RandomFreeCell();
-                    var newCampfire = new CampfireTile(pos.X, pos.Y);
-                    Campfires.Add(newCampfire);
-                    GD.Print($"🔥 Neues Campfire gespawned bei ({pos.X}, {pos.Y})");
-                    campfire = newCampfire;
-                }
-                else
-                {
-                    return; // Kein Campfire auf diesem Level
-                }
+                var pos = RandomFreeCell();
+                var newCampfire = new CampfireTile(pos.X, pos.Y);
+                Campfires.Add(newCampfire);
+                GD.Print($"🔥 Neues Campfire gespawned bei ({pos.X}, {pos.Y})");
             }
 
-            // Prüfe orthogonale Nachbarschaft (4 Richtungen)
-            int dx = System.Math.Abs(campfire.X - Player.X);
-            int dy = System.Math.Abs(campfire.Y - Player.Y);
-
-            // Angrenzend = genau 1 Tile Abstand in X ODER Y (nicht beide, nicht diagonal)
-            bool isAdjacent = (dx == 1 && dy == 0) || (dx == 0 && dy == 1);
-
-            if (isAdjacent && Player.ColdStacks > 0)
-            {
-                if (campfire.UseCharge())
-                {
-                    int removedStacks = System.Math.Min(CampfireTile.WarmthAmount, Player.ColdStacks);
-                    Player.ColdStacks -= removedStacks;
-                    GD.Print($"🔥 Campfire Wärme! -{removedStacks} Cold Stacks (Total: {Player.ColdStacks}, Remaining Charges: {campfire.Charges})");
-                }
-            }
+            // NOTE: Warmth check removed - now handled in MovementPipeline.CheckCampfireWarmth()
+            // This prevents double-usage of campfire per turn
         }
 
         private void ProcessColdDamage()
