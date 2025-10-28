@@ -71,8 +71,7 @@ namespace Dungeon2048.Core.Debug
         public static void JumpToLevel(GameContext ctx, int level)
         {
             ctx.CurrentLevel = level;
-            ctx.BiomeSystem.UpdateBiome(level);
-            
+
             // Clear old entities
             ctx.Enemies.Clear();
             ctx.Stones.Clear();
@@ -83,20 +82,23 @@ namespace Dungeon2048.Core.Debug
             ctx.Teleporters.Clear();
             ctx.RuneTraps.Clear();
             ctx.MagicBarriers.Clear();
+            ctx.FireTiles.Clear();
+            ctx.FallingRocks.Clear();
+            ctx.Campfires.Clear(); // Akt 4: Clear campfires
             ctx.Door = null;
-            
+
             // Reset Player HP
             ctx.Player.Hp = ctx.Player.MaxHp;
-            
+
             // Generate new objective
             ctx.Objective = Objectives.ObjectiveService.Generate(ctx.Rng, level);
-            
+
             // Spawn initial stones (wie bei normalem Level-Start)
             SpawnInitialStones(ctx);
-            
-            // Biome-spezifische Level-Start-Logik ausführen
-            ctx.BiomeSystem.CurrentBiome?.OnLevelStart(ctx);
-            
+
+            // UpdateBiome automatically calls OnLevelStart, so don't call it again!
+            ctx.BiomeSystem.UpdateBiome(level);
+
             GD.Print($"=== Jumped to Level {level} ===");
             GD.Print($"Biome: {ctx.BiomeSystem.CurrentBiome.Name}");
             GD.Print($"Objective: {ctx.Objective.Description}");
