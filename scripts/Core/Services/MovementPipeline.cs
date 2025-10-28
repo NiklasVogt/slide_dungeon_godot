@@ -312,6 +312,14 @@ namespace Dungeon2048.Core.Services
                             target.Hp -= enemy.Atk;
                         }
 
+                        // Akt 4: Cold Attack zwischen Enemies
+                        int coldDamage = enemy.GetColdAttackDamage();
+                        if (coldDamage > 0)
+                        {
+                            target.ColdStacks += coldDamage;
+                            GD.Print($"❄️ {enemy.DisplayName} friert {target.DisplayName} ein! +{coldDamage} Cold Stacks (Total: {target.ColdStacks})");
+                        }
+
                         // Schmied-Golem hat angegriffen, Counter zurücksetzen
                         if (enemy.Type == EnemyType.SchmiedGolem)
                         {
@@ -500,6 +508,12 @@ namespace Dungeon2048.Core.Services
 
                 ResolveAfterMove(ctx, bus, entity, dx, dy, occupied, startX, startY);
 
+                // Akt 4: Check Campfire Warmth immediately after player movement
+                if (entity is Player && ctx.BiomeSystem.CurrentBiome?.Type == World.BiomeType.FrostDepths)
+                {
+                    CheckCampfireWarmth(ctx);
+                }
+
                 // Fire Elemental: Hinterlässt Feuer auf vorheriger Position (40% Chance)
                 if (entity is Enemy fireElem && fireElem.Type == EnemyType.FireElemental)
                 {
@@ -582,6 +596,29 @@ namespace Dungeon2048.Core.Services
                 {
                     ctx.Player.Hp -= forgeMaster.Atk;
                     GD.Print($"⚒️ Schmiedemeister hämmert den Spieler! {forgeMaster.Atk} Schaden!");
+                }
+            }
+        }
+
+        private static void CheckCampfireWarmth(GameContext ctx)
+        {
+            // Get the single campfire
+            var campfire = ctx.Campfires.FirstOrDefault();
+            if (campfire == null || campfire.IsExtinguished)
+                return;
+
+            // Check if player is adjacent (orthogonal only, not diagonal)
+            int dx = System.Math.Abs(campfire.X - ctx.Player.X);
+            int dy = System.Math.Abs(campfire.Y - ctx.Player.Y);
+            bool isAdjacent = (dx == 1 && dy == 0) || (dx == 0 && dy == 1);
+
+            if (isAdjacent && ctx.Player.ColdStacks > 0)
+            {
+                if (campfire.UseCharge())
+                {
+                    int removedStacks = System.Math.Min(CampfireTile.WarmthAmount, ctx.Player.ColdStacks);
+                    ctx.Player.ColdStacks -= removedStacks;
+                    GD.Print($"🔥 Campfire Wärme! -{removedStacks} Cold Stacks (Total: {ctx.Player.ColdStacks}, Charges: {campfire.Charges})");
                 }
             }
         }
