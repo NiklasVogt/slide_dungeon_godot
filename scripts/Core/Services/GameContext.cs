@@ -431,6 +431,7 @@ namespace Dungeon2048.Core.Services
             MagicBarriers.Clear();
             FireTiles.Clear();
             FallingRocks.Clear();
+            Campfires.Clear(); // Akt 4: Clear campfires when advancing to next level
             HexCurseTurnsRemaining = 0;
             Door = null;
 
