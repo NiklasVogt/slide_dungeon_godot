@@ -245,7 +245,28 @@ namespace Dungeon2048.Core.Services
                     if (enemy.CanAttack() && enemy.Type != EnemyType.Thorns)
                     {
                         bus.AddAttackEvent(new AttackEvent($"Enemy_{enemy.Id}", "Player", new Vector2I(dx, dy)));
-                        ctx.Player.Hp -= enemy.Atk;
+
+                        // Akt 4: Frostbite macht KEINEN HP-Schaden, nur Cold Stacks
+                        if (enemy.Type != EnemyType.Frostbite)
+                        {
+                            ctx.Player.Hp -= enemy.Atk;
+                        }
+
+                        // Akt 4: Cold Attack
+                        int coldDamage = enemy.GetColdAttackDamage();
+                        if (coldDamage > 0)
+                        {
+                            ctx.Player.ColdStacks += coldDamage;
+
+                            if (enemy.Type == EnemyType.Frostbite)
+                            {
+                                GD.Print($"❄️👻 {enemy.DisplayName} berührt dich! +{coldDamage} Cold Stacks (Total: {ctx.Player.ColdStacks})");
+                            }
+                            else
+                            {
+                                GD.Print($"❄️ {enemy.DisplayName} friert dich ein! +{coldDamage} Cold Stacks (Total: {ctx.Player.ColdStacks})");
+                            }
+                        }
 
                         // Schmied-Golem hat angegriffen, Counter zurücksetzen
                         if (enemy.Type == EnemyType.SchmiedGolem)
@@ -289,6 +310,14 @@ namespace Dungeon2048.Core.Services
                         if (target.Type != EnemyType.Masochist)
                         {
                             target.Hp -= enemy.Atk;
+                        }
+
+                        // Akt 4: Cold Attack zwischen Enemies
+                        int coldDamage = enemy.GetColdAttackDamage();
+                        if (coldDamage > 0)
+                        {
+                            target.ColdStacks += coldDamage;
+                            GD.Print($"❄️ {enemy.DisplayName} friert {target.DisplayName} ein! +{coldDamage} Cold Stacks (Total: {target.ColdStacks})");
                         }
 
                         // Schmied-Golem hat angegriffen, Counter zurücksetzen
@@ -455,14 +484,35 @@ namespace Dungeon2048.Core.Services
                 var pos = CalculateFurthest(ctx, entity, dx, dy, occupied);
                 entity.X = pos.X; entity.Y = pos.Y;
                 occupied.Add($"{entity.X},{entity.Y}");
-                
+
                 // Tür wieder als occupied markieren
                 if (doorWasOccupied && ctx.Door != null && ctx.Door.IsActive)
                 {
                     occupied.Add($"{ctx.Door.X},{ctx.Door.Y}");
                 }
 
+                // Akt 4: Track Player Movement Distance für Wärme
+                if (entity is Player && ctx.BiomeSystem.CurrentBiome?.Type == World.BiomeType.FrostDepths)
+                {
+                    int distanceMoved = System.Math.Abs(entity.X - startX) + System.Math.Abs(entity.Y - startY);
+                    ctx.TotalMovementTiles += distanceMoved;
+
+                    // Alle 5 Tiles: -1 Cold Stack
+                    while (ctx.TotalMovementTiles >= 5 && ctx.Player.ColdStacks > 0)
+                    {
+                        ctx.Player.ColdStacks--;
+                        ctx.TotalMovementTiles -= 5;
+                        GD.Print($"🏃 Movement Wärme! Player -1 Cold Stack (Total: {ctx.Player.ColdStacks})");
+                    }
+                }
+
                 ResolveAfterMove(ctx, bus, entity, dx, dy, occupied, startX, startY);
+
+                // Akt 4: Check Campfire Warmth immediately after player movement
+                if (entity is Player && ctx.BiomeSystem.CurrentBiome?.Type == World.BiomeType.FrostDepths)
+                {
+                    CheckCampfireWarmth(ctx);
+                }
 
                 // Fire Elemental: Hinterlässt Feuer auf vorheriger Position (40% Chance)
                 if (entity is Enemy fireElem && fireElem.Type == EnemyType.FireElemental)
@@ -546,6 +596,50 @@ namespace Dungeon2048.Core.Services
                 {
                     ctx.Player.Hp -= forgeMaster.Atk;
                     GD.Print($"⚒️ Schmiedemeister hämmert den Spieler! {forgeMaster.Atk} Schaden!");
+                }
+            }
+        }
+
+        private static void CheckCampfireWarmth(GameContext ctx)
+        {
+            // Get the single campfire
+            var campfire = ctx.Campfires.FirstOrDefault();
+            if (campfire == null || campfire.IsExtinguished)
+                return;
+
+            // Check if player is adjacent (orthogonal only, not diagonal)
+            int dx = System.Math.Abs(campfire.X - ctx.Player.X);
+            int dy = System.Math.Abs(campfire.Y - ctx.Player.Y);
+            bool isAdjacent = (dx == 1 && dy == 0) || (dx == 0 && dy == 1);
+
+            if (isAdjacent && ctx.Player.ColdStacks > 0)
+            {
+                if (campfire.UseCharge())
+                {
+                    int removedStacks = System.Math.Min(CampfireTile.WarmthAmount, ctx.Player.ColdStacks);
+                    ctx.Player.ColdStacks -= removedStacks;
+                    GD.Print($"🔥 Campfire Wärme! -{removedStacks} Cold Stacks (Total: {ctx.Player.ColdStacks}, Charges: {campfire.Charges})");
+
+                    // Instant respawn if campfire is now extinguished (unless Ice Dragon Phase 2)
+                    if (campfire.IsExtinguished)
+                    {
+                        ctx.Campfires.Remove(campfire);
+
+                        // Check if Ice Dragon Phase 2 is active - no respawn allowed
+                        var iceDragon = ctx.Enemies.FirstOrDefault(e => e.Type == EnemyType.IceDragon && e.IsBoss && e.IsPhase2);
+                        if (iceDragon != null)
+                        {
+                            GD.Print($"❄️ Campfire erloschen! Keine Wärmequelle mehr im Absoluten Null...");
+                        }
+                        else
+                        {
+                            GD.Print($"🔥 Campfire erloschen! Spawne neues sofort...");
+                            var pos = ctx.RandomFreeCell();
+                            var newCampfire = new CampfireTile(pos.X, pos.Y);
+                            ctx.Campfires.Add(newCampfire);
+                            GD.Print($"🔥 Neues Campfire gespawned bei ({pos.X}, {pos.Y})");
+                        }
+                    }
                 }
             }
         }

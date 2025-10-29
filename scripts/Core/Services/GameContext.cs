@@ -36,6 +36,9 @@ namespace Dungeon2048.Core.Services
         public readonly List<FireTile> FireTiles = new();
         public readonly List<FallingRock> FallingRocks = new();
 
+        // Tile-Listen für Akt 4: Die Frostigen Tiefen
+        public readonly List<CampfireTile> Campfires = new();
+
         public IObjective Objective = null!;
         public int CurrentLevel = 1;
         public int TotalSwipes = 0;
@@ -50,6 +53,11 @@ namespace Dungeon2048.Core.Services
 
         // Boss-State
         public int GoblinKingSpawnCounter = 0;
+
+        // Akt 4: Cold System Tracking
+        public int TotalMovementTiles = 0;       // Tracking für Movement-Wärme
+        public int FrostwindCounter = 0;          // Frostwind alle 10 Züge
+        public bool IsNightPhase => TotalSwipes >= 30;  // Doppelte Cold-Rate ab Zug 30
 
         public Random Rng = new();
 
@@ -136,6 +144,13 @@ namespace Dungeon2048.Core.Services
 
             // NEU: Teleporter am Ende des Zuges verarbeiten
             ProcessTeleporters();
+
+            // Akt 4: Cold System Processing (except death check - that happens after movement/combat)
+            ProcessColdAccumulation();
+            ProcessCampfireWarmth();
+            ProcessGlacialSentinelAuras();
+            ProcessPermafrostLichChill();
+            // NOTE: ProcessColdDamage() moved to GameBoard.cs after movement/combat complete
 
             CheckAndSpawnDoor();
 
@@ -312,6 +327,14 @@ namespace Dungeon2048.Core.Services
             // NEU: Seelen für Kill
             int souls = SoulCurrency.GetSoulReward(e.Type, e.EnemyLevel, e.IsBoss);
             SoulManager.AddSouls(souls);
+
+            // Akt 4: Kampf-Wärme (Adrenalin-Effekt) -1 Cold Stack pro Kill
+            if (BiomeSystem.CurrentBiome?.Type == World.BiomeType.FrostDepths && Player.ColdStacks > 0)
+            {
+                Player.ColdStacks--;
+                GD.Print($"⚔️ Kampf-Wärme! Player -1 Cold Stack (Total: {Player.ColdStacks})");
+            }
+
             if (e.Type == EnemyType.HexWitch)
             {
                 HexCurseTurnsRemaining = 5;
@@ -408,6 +431,7 @@ namespace Dungeon2048.Core.Services
             MagicBarriers.Clear();
             FireTiles.Clear();
             FallingRocks.Clear();
+            Campfires.Clear(); // Akt 4: Clear campfires when advancing to next level
             HexCurseTurnsRemaining = 0;
             Door = null;
 
@@ -442,6 +466,7 @@ namespace Dungeon2048.Core.Services
             if (Teleporters.Any(t => t.X == x && t.Y == y && t.IsActive)) return false; // Teleporter blockieren nicht
             if (RuneTraps.Any(r => r.X == x && r.Y == y && !r.IsTriggered)) return false; // Fallen blockieren nicht
             if (MagicBarriers.Any(m => m.X == x && m.Y == y && !m.IsDestroyed)) return true;
+            if (Campfires.Any(c => c.X == x && c.Y == y && !c.IsExtinguished)) return true; // Campfires blockieren
             return false;
         }
 
@@ -693,6 +718,111 @@ namespace Dungeon2048.Core.Services
             }
         }
 
+        // Akt 4: Ice Dragon Boss Mechanics
+        public void HandleIceDragonMechanics()
+        {
+            var iceDragon = Enemies.FirstOrDefault(e => e.Type == EnemyType.IceDragon && e.IsBoss);
+            if (iceDragon == null) return;
+
+            // Increment counters
+            iceDragon.IceDragonWinterCounter++;
+            iceDragon.IceDragonSpawnCounter++;
+
+            // Phase 1: Ewiger Winter - Alle 4 Züge
+            if (iceDragon.IceDragonWinterCounter >= 4)
+            {
+                GD.Print("❄️💀 EWIGER WINTER! Alle Entities +3 Cold Stacks! ❄️💀");
+
+                // Player
+                Player.ColdStacks += 3;
+
+                // All Enemies
+                foreach (var enemy in Enemies)
+                {
+                    enemy.ColdStacks += 3;
+                }
+
+                iceDragon.IceDragonWinterCounter = 0;
+            }
+
+            // Phase 1: Wraith Spawn - Alle 5 Züge
+            if (iceDragon.IceDragonSpawnCounter >= 5)
+            {
+                SpawnFrostbiteWraith();
+                iceDragon.IceDragonSpawnCounter = 0;
+            }
+
+            // Phase 2: Bei 50% HP
+            if (!iceDragon.IsPhase2 && iceDragon.Hp <= iceDragon.MaxHp / 2)
+            {
+                ActivateIceDragonPhase2(iceDragon);
+            }
+
+            // Phase 2: Warmes Herz Aura (-2 Cold Stacks wenn Player angrenzend)
+            if (iceDragon.IsPhase2)
+            {
+                ProcessWarmesHerzAura(iceDragon);
+            }
+        }
+
+        private void SpawnFrostbiteWraith()
+        {
+            GD.Print("👻❄️ FROSTBITE WRAITH ERSCHEINT! 👻❄️");
+
+            var pos = RandomFreeCell();
+            var wraith = EnemyRegistry.Get(EnemyType.Frostbite).Create(pos.X, pos.Y, CalculateEnemyLevel() + 1);
+
+            // Biome Modifiers
+            var biome = BiomeSystem.CurrentBiome;
+            wraith.Hp = (int)(wraith.Hp * biome.EnemyHealthMultiplier);
+            wraith.Atk = (int)(wraith.Atk * biome.EnemyDamageMultiplier);
+
+            Enemies.Add(wraith);
+        }
+
+        private void ActivateIceDragonPhase2(Enemy iceDragon)
+        {
+            iceDragon.IsPhase2 = true;
+            GD.Print("❄️🐉 ICE DRAGON PHASE 2: ABSOLUTER NULL! 🐉❄️");
+            GD.Print("Die Kälte wird unerträglich! Alle Wärmequellen verschwinden!");
+
+            // Remove all Campfires
+            int campfireCount = Campfires.Count;
+            Campfires.Clear();
+            if (campfireCount > 0)
+            {
+                GD.Print($"🔥💨 {campfireCount} Lagerfeuer erlöschen!");
+            }
+
+            // Remove all Torches
+            int torchCount = Torches.Count;
+            Torches.Clear();
+            if (torchCount > 0)
+            {
+                GD.Print($"🔦💨 {torchCount} Fackeln erlöschen!");
+            }
+
+            // Increase ATK to 25
+            iceDragon.Atk = 25;
+            GD.Print($"🐉 Der Eisdrache wird stärker! ATK: 25");
+            GD.Print($"❤️‍🔥 Nur noch das warme Herz des Drachens kann dich retten...");
+        }
+
+        private void ProcessWarmesHerzAura(Enemy iceDragon)
+        {
+            // Check if player is adjacent (orthogonal only, 1-tile melee range)
+            int dx = System.Math.Abs(iceDragon.X - Player.X);
+            int dy = System.Math.Abs(iceDragon.Y - Player.Y);
+            bool isAdjacent = (dx == 1 && dy == 0) || (dx == 0 && dy == 1);
+
+            if (isAdjacent && Player.ColdStacks > 0)
+            {
+                int warmth = System.Math.Min(2, Player.ColdStacks);
+                Player.ColdStacks -= warmth;
+                GD.Print($"❤️‍🔥 Warmes Herz: -{warmth} Cold Stacks (Total: {Player.ColdStacks})");
+            }
+        }
+
         private void HandlePyromaniacExplosion(int x, int y)
         {
             const int explosionDamage = 10;
@@ -845,6 +975,207 @@ namespace Dungeon2048.Core.Services
             {
                 // Sollte nicht passieren, aber Fallback
                 Godot.GD.PrintErr($"Versuch Boss zu spawnen aber Level {CurrentLevel} ist kein Boss-Level!");
+            }
+        }
+
+        // ========================================
+        // Akt 4: Cold System Methods
+        // ========================================
+
+        private void ProcessColdAccumulation()
+        {
+            // Nur in Frost Depths Biome aktiv
+            if (BiomeSystem.CurrentBiome?.Type != World.BiomeType.FrostDepths)
+                return;
+
+            // 1. Passive Umgebungskälte: Alle 3 Züge +1 Stack (alle Entities)
+            if (TotalSwipes % 3 == 0)
+            {
+                int baseStacks = 1;
+                int nightModifier = IsNightPhase ? 2 : 1; // Nacht-Phase verdoppelt
+                int stacksToAdd = baseStacks * nightModifier;
+
+                Player.ColdStacks += stacksToAdd;
+                GD.Print($"❄️ Passive Kälte: Player +{stacksToAdd} Cold Stacks (Total: {Player.ColdStacks})");
+
+                foreach (var enemy in Enemies)
+                {
+                    enemy.ColdStacks += stacksToAdd;
+                }
+            }
+
+            // 2. Frostwind-Event: Alle 10 Züge +2 Stacks (alle Entities)
+            FrostwindCounter++;
+            if (FrostwindCounter >= 10)
+            {
+                GD.Print("🌬️ FROSTWIND EVENT! Alle Entities erhalten +2 Cold Stacks!");
+                Player.ColdStacks += 2;
+
+                foreach (var enemy in Enemies)
+                {
+                    enemy.ColdStacks += 2;
+                }
+
+                FrostwindCounter = 0;
+            }
+
+            // 3. Nacht-Phase Warnung
+            if (IsNightPhase && TotalSwipes == 30)
+            {
+                GD.Print("🌙 NACHT-PHASE BEGINNT! Kälte-Rate verdoppelt!");
+            }
+        }
+
+        private void ProcessCampfireWarmth()
+        {
+            // Nur in Frost Depths Biome aktiv
+            if (BiomeSystem.CurrentBiome?.Type != World.BiomeType.FrostDepths)
+                return;
+
+            // Safety Check: Ensure only 1 campfire exists
+            if (Campfires.Count > 1)
+            {
+                GD.PrintErr($"⚠️ WARNING: {Campfires.Count} campfires exist! Removing duplicates...");
+                while (Campfires.Count > 1)
+                {
+                    Campfires.RemoveAt(Campfires.Count - 1);
+                }
+            }
+
+            // NOTE: Warmth check and respawn now handled in MovementPipeline.CheckCampfireWarmth()
+            // Campfire respawns instantly when reaching 0 charges, not on next turn
+        }
+
+        public void ProcessColdDamage()
+        {
+            // Nur in Frost Depths Biome aktiv
+            if (BiomeSystem.CurrentBiome?.Type != World.BiomeType.FrostDepths)
+                return;
+
+            // Check Player Tod durch Kälte
+            if (Player.ColdStacks >= Player.ColdResistance)
+            {
+                Player.Hp = 0;
+                GD.Print($"❄️💀 Player ist erfroren! ({Player.ColdStacks}/{Player.ColdResistance} Stacks)");
+            }
+
+            // Check Enemies Tod durch Kälte
+            var frozenEnemies = new List<Enemy>();
+            foreach (var enemy in Enemies)
+            {
+                if (enemy.ColdStacks >= enemy.ColdResistance)
+                {
+                    frozenEnemies.Add(enemy);
+                    GD.Print($"❄️💀 {enemy.DisplayName} ist erfroren! ({enemy.ColdStacks}/{enemy.ColdResistance} Stacks)");
+                }
+            }
+
+            // Remove frozen enemies
+            foreach (var frozen in frozenEnemies)
+            {
+                Enemies.Remove(frozen);
+                TotalEnemiesKilled++;
+                Objective.OnKillEnemy(frozen);
+            }
+        }
+
+        private void ProcessGlacialSentinelAuras()
+        {
+            // Nur in Frost Depths Biome aktiv
+            if (BiomeSystem.CurrentBiome?.Type != World.BiomeType.FrostDepths)
+                return;
+
+            var sentinels = Enemies.Where(e => e.Type == EnemyType.GlacialSentinel).ToList();
+            if (!sentinels.Any()) return;
+
+            foreach (var sentinel in sentinels)
+            {
+                // Prüfe alle Entities in 1-Tile Radius (8 Tiles um Sentinel, inkl. diagonal)
+                for (int dx = -1; dx <= 1; dx++)
+                {
+                    for (int dy = -1; dy <= 1; dy++)
+                    {
+                        if (dx == 0 && dy == 0) continue; // Sentinel selbst
+
+                        int checkX = sentinel.X + dx;
+                        int checkY = sentinel.Y + dy;
+
+                        // Player check
+                        if (Player.X == checkX && Player.Y == checkY)
+                        {
+                            Player.ColdStacks++;
+                            GD.Print($"🧊 Glacial Sentinel Aura: Player +1 Cold Stack");
+                        }
+
+                        // Enemy check
+                        foreach (var enemy in Enemies)
+                        {
+                            if (enemy.X == checkX && enemy.Y == checkY && enemy.Id != sentinel.Id)
+                            {
+                                enemy.ColdStacks++;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        private void ProcessPermafrostLichChill()
+        {
+            // Nur in Frost Depths Biome aktiv
+            if (BiomeSystem.CurrentBiome?.Type != World.BiomeType.FrostDepths)
+                return;
+
+            var liches = Enemies.Where(e => e.Type == EnemyType.PermafrostLich).ToList();
+            if (!liches.Any()) return;
+
+            foreach (var lich in liches)
+            {
+                // Prüfe ob Player auf gleicher X- ODER Y-Achse und direkte Sichtlinie
+                bool sameX = lich.X == Player.X;
+                bool sameY = lich.Y == Player.Y;
+
+                if (!sameX && !sameY) continue;
+
+                // Sightline Check: Keine Enemies zwischen Lich und Player
+                bool hasSightline = true;
+
+                if (sameX)
+                {
+                    // Gleiche X-Achse: Prüfe Y-Werte dazwischen
+                    int minY = Math.Min(lich.Y, Player.Y);
+                    int maxY = Math.Max(lich.Y, Player.Y);
+
+                    foreach (var enemy in Enemies)
+                    {
+                        if (enemy.Id != lich.Id && enemy.X == lich.X && enemy.Y > minY && enemy.Y < maxY)
+                        {
+                            hasSightline = false;
+                            break;
+                        }
+                    }
+                }
+                else if (sameY)
+                {
+                    // Gleiche Y-Achse: Prüfe X-Werte dazwischen
+                    int minX = Math.Min(lich.X, Player.X);
+                    int maxX = Math.Max(lich.X, Player.X);
+
+                    foreach (var enemy in Enemies)
+                    {
+                        if (enemy.Id != lich.Id && enemy.Y == lich.Y && enemy.X > minX && enemy.X < maxX)
+                        {
+                            hasSightline = false;
+                            break;
+                        }
+                    }
+                }
+
+                if (hasSightline)
+                {
+                    Player.ColdStacks += 2;
+                    GD.Print($"🔷 Permafrost Lich Chill: Player +2 Cold Stacks (Sightline!)");
+                }
             }
         }
     }

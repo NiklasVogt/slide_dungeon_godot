@@ -71,8 +71,7 @@ namespace Dungeon2048.Core.Debug
         public static void JumpToLevel(GameContext ctx, int level)
         {
             ctx.CurrentLevel = level;
-            ctx.BiomeSystem.UpdateBiome(level);
-            
+
             // Clear old entities
             ctx.Enemies.Clear();
             ctx.Stones.Clear();
@@ -83,20 +82,23 @@ namespace Dungeon2048.Core.Debug
             ctx.Teleporters.Clear();
             ctx.RuneTraps.Clear();
             ctx.MagicBarriers.Clear();
+            ctx.FireTiles.Clear();
+            ctx.FallingRocks.Clear();
+            ctx.Campfires.Clear(); // Akt 4: Clear campfires
             ctx.Door = null;
-            
+
             // Reset Player HP
             ctx.Player.Hp = ctx.Player.MaxHp;
-            
+
             // Generate new objective
             ctx.Objective = Objectives.ObjectiveService.Generate(ctx.Rng, level);
-            
+
             // Spawn initial stones (wie bei normalem Level-Start)
             SpawnInitialStones(ctx);
-            
-            // Biome-spezifische Level-Start-Logik ausführen
-            ctx.BiomeSystem.CurrentBiome?.OnLevelStart(ctx);
-            
+
+            // UpdateBiome automatically calls OnLevelStart, so don't call it again!
+            ctx.BiomeSystem.UpdateBiome(level);
+
             GD.Print($"=== Jumped to Level {level} ===");
             GD.Print($"Biome: {ctx.BiomeSystem.CurrentBiome.Name}");
             GD.Print($"Objective: {ctx.Objective.Description}");
@@ -185,44 +187,30 @@ namespace Dungeon2048.Core.Debug
             }
         }
         
-        public static void SpawnTeleporters(GameContext ctx)
+        public static void ActivateIceDragonPhase2(GameContext ctx)
         {
-            var pos1 = ctx.RandomFreeCell();
-            var pos2 = FindValidTeleporterPosition(ctx, pos1);
-            
-            var t1 = new Tiles.Teleporter(pos1.X, pos1.Y);
-            var t2 = new Tiles.Teleporter(pos2.X, pos2.Y);
-            
-            t1.LinkedTeleporterId = t2.Id;
-            t2.LinkedTeleporterId = t1.Id;
-            
-            ctx.Teleporters.Add(t1);
-            ctx.Teleporters.Add(t2);
-            
-            GD.Print($"Spawned teleporter pair at ({pos1.X},{pos1.Y}) <-> ({pos2.X},{pos2.Y})");
-        }
-        
-        // Helper für gültige Teleporter-Position
-        private static (int X, int Y) FindValidTeleporterPosition(GameContext ctx, (int X, int Y) firstPos)
-        {
-            const int maxAttempts = 50;
-            int attempts = 0;
-            
-            while (attempts < maxAttempts)
+            var iceDragon = ctx.Enemies.FirstOrDefault(e => e.Type == EnemyType.IceDragon && e.IsBoss);
+
+            if (iceDragon == null)
             {
-                var pos = ctx.RandomFreeCell();
-                
-                // Nicht auf gleicher X- oder Y-Achse
-                if (pos.X != firstPos.X && pos.Y != firstPos.Y)
-                {
-                    return pos;
-                }
-                
-                attempts++;
+                GD.Print("❌ No Ice Dragon found! Spawn a boss first with debug command.");
+                return;
             }
-            
-            GD.PrintErr("⚠️ Konnte keine gültige Teleporter-Position finden (Debug)");
-            return ctx.RandomFreeCell();
+
+            if (iceDragon.IsPhase2)
+            {
+                GD.Print("⚠️ Ice Dragon is already in Phase 2!");
+                return;
+            }
+
+            // Activate Phase 2
+            iceDragon.IsPhase2 = true;
+            GD.Print("❄️🐉 ICE DRAGON PHASE 2 ACTIVATED! ❄️🐉");
+            GD.Print($"Cold Attack increased: 2 → 3 stacks per hit");
+            GD.Print($"Dragon HP: {iceDragon.Hp}/{iceDragon.MaxHp}");
+
+            // TODO: Add Ice Dragon Phase 2 mechanics here
+            // Ideas: Spawn Frost minions, Ice walls, Blizzard AoE, etc.
         }
     }
 }

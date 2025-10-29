@@ -28,6 +28,9 @@ namespace Dungeon2048.Core.World
             var volcanForge = new VolcanForgeBiome();
             _biomes[BiomeType.VolcanForge] = volcanForge;
 
+            var frostDepths = new FrostDepthsBiome();
+            _biomes[BiomeType.FrostDepths] = frostDepths;
+
             // Weitere Biome später
         }
 

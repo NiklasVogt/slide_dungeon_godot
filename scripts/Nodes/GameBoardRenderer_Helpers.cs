@@ -41,11 +41,11 @@ namespace Dungeon2048.Nodes
             hpLbl.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
             wrap.AddChild(hpLbl);
 
-            // Badge (oben rechts)
+            // Badge (Position abhängig vom Typ)
             if (showBadge)
             {
                 var badge = new Label { Name = "Badge", Text = badgeText };
-                badge.Position = new Vector2(_layout.TileSize - 22, 2);
+                badge.Position = GetBadgePosition(badgeText);
                 badge.AddThemeFontSizeOverride("font_size", 14);
                 wrap.AddChild(badge);
             }
@@ -90,7 +90,7 @@ namespace Dungeon2048.Nodes
                 {
                     badge.Text = badgeText;
                     badge.Visible = true;
-                    badge.Position = new Vector2(_layout.TileSize - 22, 2);
+                    badge.Position = GetBadgePosition(badgeText);
                 }
                 else
                 {
@@ -121,6 +121,19 @@ namespace Dungeon2048.Nodes
             tw.TweenProperty(node, "position", target, duration);
         }
 
+        private Vector2 GetBadgePosition(string badgeText)
+        {
+            // Frost Stacks (❄️) oben Mitte, andere oben rechts
+            if (!string.IsNullOrEmpty(badgeText) && badgeText.Contains("❄️"))
+            {
+                // Oben Mitte (zentriert)
+                return new Vector2((_layout.TileSize / 2) - 12, 2);
+            }
+
+            // Standard: Oben rechts
+            return new Vector2(_layout.TileSize - 22, 2);
+        }
+
         private void PruneMissingNodes(GameContext ctx)
         {
             var alive = new HashSet<string> { "Player" };
@@ -129,6 +142,7 @@ namespace Dungeon2048.Nodes
             foreach (var s in ctx.Stones) alive.Add($"Stone_{s.Id}");
             foreach (var g in ctx.Gravestones) alive.Add($"Gravestone_{g.Id}");
             foreach (var t in ctx.Torches) alive.Add($"Torch_{t.Id}");
+            foreach (var c in ctx.Campfires) alive.Add($"Campfire_{c.Id}");
             foreach (var b in ctx.BonePiles) alive.Add($"BonePile_{b.Id}");
             foreach (var d in ctx.SpellDrops) alive.Add($"Spell_{d.Id}");
             foreach (var t in ctx.Teleporters.Where(t => t.IsActive)) alive.Add($"Teleporter_{t.Id}");
@@ -188,8 +202,13 @@ namespace Dungeon2048.Nodes
             };
         }
 
-        private string GetEnemyBadge(Enemy e)
+        private string GetEnemyBadge(Enemy e, GameContext ctx)
         {
+            // Cold Stacks - Priorität in Frost Depths (außer Boss und Cold-Immune)
+            if (e.ColdStacks > 0 && !e.IsBoss && e.ColdResistance < 999 &&
+                ctx.BiomeSystem.CurrentBiome?.Type == Core.World.BiomeType.FrostDepths)
+                return $"❄️{e.ColdStacks}";
+
             // Burning Status hat höchste Priorität (außer Boss)
             if (e.BurningStacks > 0 && !e.IsBoss)
                 return $"🔥{e.BurningStacks}";
@@ -214,9 +233,13 @@ namespace Dungeon2048.Nodes
             return e.EnemyLevel.ToString();
         }
 
-        private string GetPlayerBadge(Player player)
+        private string GetPlayerBadge(Player player, GameContext ctx)
         {
-            // Burning Status - Zeige Feuer mit Stack Count
+            // Cold Stacks - Immer anzeigen wenn > 0 (höchste Priorität)
+            if (player.ColdStacks > 0)
+                return $"❄️{player.ColdStacks}";
+
+            // Burning Status - Zeige Feuer mit Stack Count (Akt 3)
             if (player.BurningStacks > 0)
                 return $"🔥{player.BurningStacks}";
 

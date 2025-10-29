@@ -132,6 +132,7 @@ namespace Dungeon2048.Nodes
             AnimateStones(ctx);
             AnimateGravestones(ctx);
             AnimateTorches(ctx);
+            AnimateCampfires(ctx);
             AnimateBonePiles(ctx);
             AnimateSpellDrops(ctx);
             AnimateTeleporters(ctx);
@@ -147,7 +148,7 @@ namespace Dungeon2048.Nodes
         private void AnimatePlayer(GameContext ctx)
         {
             var name = "Player";
-            string badge = GetPlayerBadge(ctx.Player);
+            string badge = GetPlayerBadge(ctx.Player, ctx);
             var node = GetOrCreateEntityNode(name, 8, Colors.SkyBlue, ctx.Player.Hp,
                 showBadge: true, badgeText: badge ?? "", displayName: "Spieler");
             SlideNodeTo(node, _layout.MapToLocal(new Vector2I(ctx.Player.X, ctx.Player.Y)));
@@ -170,7 +171,7 @@ namespace Dungeon2048.Nodes
                 }
                 
                 var color = GetEnemyColor(e.Type);
-                string badge = GetEnemyBadge(e);
+                string badge = GetEnemyBadge(e, ctx);
                 var displayName = e.DisplayName;
                 
                 var enemyNode = GetOrCreateEntityNode(name, 6, color, e.Hp, 
@@ -216,6 +217,20 @@ namespace Dungeon2048.Nodes
                 var node = GetOrCreateEntityNode(name, 2, flickerColor, 1, displayName: "Fackel");
                 SlideNodeTo(node, _layout.MapToLocal(new Vector2I(t.X, t.Y)));
                 UpdateEntityNodeVisuals(name, 1, displayName: "Fackel");
+            }
+        }
+
+        private void AnimateCampfires(GameContext ctx)
+        {
+            foreach (var c in ctx.Campfires)
+            {
+                var name = $"Campfire_{c.Id}";
+                var campfireColor = c.IsExtinguished ? new Color("8b4513") : new Color("ff8c00"); // Orange wenn aktiv
+                var badge = c.IsExtinguished ? "" : $"🔥{c.Charges}"; // Badge mit Charges
+                var node = GetOrCreateEntityNode(name, 2, campfireColor, 1,
+                    showBadge: true, badgeText: badge, displayName: "Lagerfeuer");
+                SlideNodeTo(node, _layout.MapToLocal(new Vector2I(c.X, c.Y)));
+                UpdateEntityNodeVisuals(name, 1, badge, displayName: "Lagerfeuer");
             }
         }
 

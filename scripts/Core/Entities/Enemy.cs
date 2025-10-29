@@ -85,6 +85,10 @@ namespace Dungeon2048.Core.Entities
         public bool StandingOnFire = false;        // Moloch: Tracking für Heilung auf Lava
         public int ForgeBuffStacks = 0;            // Forge Master: Wie oft wurde dieser Gegner gebuffed
 
+        // Akt 4: Ice Dragon Boss Mechanics
+        public int IceDragonWinterCounter = 0;     // Ice Dragon: Ewiger Winter alle 4 Züge
+        public int IceDragonSpawnCounter = 0;      // Ice Dragon: Wraith Spawn alle 5 Züge
+
         public int MaxHp { get; private set; }
         public Enemy(int x, int y, EnemyType type, int enemyLevel, bool isBoss = false)
             : base(x, y, CalcHp(type, enemyLevel, isBoss), CalcAtk(type, enemyLevel, isBoss))
@@ -92,16 +96,49 @@ namespace Dungeon2048.Core.Entities
             Type = type;
             EnemyLevel = enemyLevel;
             IsBoss = isBoss;
-            
+
             // NEU: MaxHp setzen
             MaxHp = CalcHp(type, enemyLevel, isBoss);
             Hp = MaxHp;
-            
+
             // Type-spezifische Initialisierung
             if (type == EnemyType.Mimic)
             {
                 IsDisguised = true;
             }
+
+            // Akt 4: Cold Resistance per Enemy Type
+            ColdResistance = type switch
+            {
+                // Akt 4 Enemies
+                EnemyType.FrostGoblin       => 5,
+                EnemyType.Yeti              => 7,
+                EnemyType.IceShard          => 999,  // Immun
+                EnemyType.Frostbite         => 999,  // Immun
+                EnemyType.Snowblind         => 8,
+                EnemyType.GlacialSentinel   => 999,  // Immun
+                EnemyType.PermafrostLich    => 999,  // Immun
+                EnemyType.IceDragon         => 999,  // Immun
+                _ => 10  // Default für alle anderen Enemies
+            };
+        }
+
+        // Akt 4: Cold Attack Damage per Enemy Type
+        public int GetColdAttackDamage()
+        {
+            return Type switch
+            {
+                // Akt 4 Enemies
+                EnemyType.FrostGoblin       => 1,  // +1 Cold Stack
+                EnemyType.Yeti              => 2,  // +2 Cold Stacks
+                EnemyType.IceShard          => 0,  // Kein Cold Attack
+                EnemyType.Frostbite         => 4,  // +4 Cold Stacks (kein HP-Schaden)
+                EnemyType.Snowblind         => 1,  // +1 Cold Stack
+                EnemyType.GlacialSentinel   => 0,  // Kein Angriff (ATK: 0)
+                EnemyType.PermafrostLich    => 0,  // Sightline Cold (nicht bei Attack)
+                EnemyType.IceDragon         => IsPhase2 ? 3 : 2,  // Phase 2: +3, Phase 1: +2
+                _ => 0  // Kein Cold Attack
+            };
         }
 
         static int CalcHp(EnemyType type, int level, bool isBoss)
@@ -134,15 +171,15 @@ namespace Dungeon2048.Core.Entities
                 EnemyType.ForgeMaster       => 18,
                 EnemyType.FireGiant         => 80,
                 
-                // Akt 4
-                EnemyType.FrostGoblin       => 10,
-                EnemyType.Yeti              => 40,
-                EnemyType.IceShard          => 6,
-                EnemyType.Frostbite         => 15,
-                EnemyType.Snowblind         => 12,
-                EnemyType.GlacialSentinel   => 45,
-                EnemyType.PermafrostLich    => 20,
-                EnemyType.IceDragon         => 90,
+                // Akt 4 (Reduziert: Cold Stacks sind die Hauptbedrohung)
+                EnemyType.FrostGoblin       => 7,
+                EnemyType.Yeti              => 25,
+                EnemyType.IceShard          => 4,
+                EnemyType.Frostbite         => 10,
+                EnemyType.Snowblind         => 8,
+                EnemyType.GlacialSentinel   => 30,
+                EnemyType.PermafrostLich    => 15,
+                EnemyType.IceDragon         => 70,
                 
                 // Akt 5
                 EnemyType.Dragon            => 25,
@@ -197,15 +234,15 @@ namespace Dungeon2048.Core.Entities
                 EnemyType.ForgeMaster       => 2,
                 EnemyType.FireGiant         => 18,
                 
-                // Akt 4
-                EnemyType.FrostGoblin       => 2,
-                EnemyType.Yeti              => 8,
-                EnemyType.IceShard          => 4,
-                EnemyType.Frostbite         => 3,
-                EnemyType.Snowblind         => 10,
+                // Akt 4 (Reduziert: Cold Stacks sind die Hauptbedrohung)
+                EnemyType.FrostGoblin       => 1,
+                EnemyType.Yeti              => 4,
+                EnemyType.IceShard          => 2,
+                EnemyType.Frostbite         => 0,  // Nur Cold Stacks, kein HP-Schaden
+                EnemyType.Snowblind         => 5,
                 EnemyType.GlacialSentinel   => 0,
-                EnemyType.PermafrostLich    => 6,
-                EnemyType.IceDragon         => 20,
+                EnemyType.PermafrostLich    => 3,
+                EnemyType.IceDragon         => 12,
                 
                 // Akt 5
                 EnemyType.Dragon            => 7,
@@ -253,15 +290,15 @@ namespace Dungeon2048.Core.Entities
                 EnemyType.ForgeMaster       => 0.9,
                 EnemyType.FireGiant         => 3.2,
                 
-                // Akt 4
-                EnemyType.FrostGoblin       => 1.1,
-                EnemyType.Yeti              => 2.0,
-                EnemyType.IceShard          => 1.3,
-                EnemyType.Frostbite         => 1.2,
-                EnemyType.Snowblind         => 2.2,
+                // Akt 4 (Reduziert: Cold Stacks sind die Hauptbedrohung)
+                EnemyType.FrostGoblin       => 0.8,
+                EnemyType.Yeti              => 1.4,
+                EnemyType.IceShard          => 0.9,
+                EnemyType.Frostbite         => 0.0,  // Nur Cold Stacks, kein HP-Schaden
+                EnemyType.Snowblind         => 1.5,
                 EnemyType.GlacialSentinel   => 0.0,
-                EnemyType.PermafrostLich    => 1.7,
-                EnemyType.IceDragon         => 3.5,
+                EnemyType.PermafrostLich    => 1.2,
+                EnemyType.IceDragon         => 2.5,
                 
                 // Akt 5
                 EnemyType.Dragon            => 2.5,

@@ -74,7 +74,7 @@ namespace Dungeon2048.Nodes
                     return true;
                     
                 case Key.F9:
-                    Core.Debug.DebugCommands.SpawnTeleporters(_ctx);
+                    Core.Debug.DebugCommands.ActivateIceDragonPhase2(_ctx);
                     return true;
                     
                 default:
